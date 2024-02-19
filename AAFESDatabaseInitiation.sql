@@ -134,3 +134,5 @@ ALTER TABLE WarehouseNotification ADD FOREIGN KEY (OrderID) REFERENCES Orders (O
 ALTER TABLE WarehouseNotification ADD FOREIGN KEY (SiteID) REFERENCES DistributionCenter (SiteID);
 
 ALTER TABLE PaymentNotification ADD FOREIGN KEY (OrderID) REFERENCES Orders (OrderID);
+
+ALTER TABLE users ADD COLUMN isDeleted BOOLEAN DEFAULT FALSE; 
