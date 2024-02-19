@@ -136,3 +136,15 @@ ALTER TABLE WarehouseNotification ADD FOREIGN KEY (SiteID) REFERENCES Distributi
 ALTER TABLE PaymentNotification ADD FOREIGN KEY (OrderID) REFERENCES Orders (OrderID);
 
 ALTER TABLE users ADD COLUMN isDeleted BOOLEAN DEFAULT FALSE; 
+
+
+DELIMITER //
+
+CREATE PROCEDURE softDeleteUser (IN deletedUserID INT)
+BEGIN
+    UPDATE Users
+	SET isDeleted = TRUE
+	WHERE userID = deletedUserID;
+END //
+
+DELIMITER ;
