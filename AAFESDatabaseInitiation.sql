@@ -137,6 +137,41 @@ ALTER TABLE PaymentNotification ADD FOREIGN KEY (OrderID) REFERENCES Orders (Ord
 
 ALTER TABLE users ADD COLUMN isDeleted BOOLEAN DEFAULT FALSE; 
 
+ALTER TABLE UserRole
+MODIFY ItemDescription varchar(50) NOT NULL UNIQUE;
+
+ALTER TABLE Users
+MODIFY FirstName varchar(100) NOT NULL,
+MODIFY LastName varchar(100) NOT NULL,
+MODIFY UserRoleID int NOT NULL,
+MODIFY UserEmail varchar(100) NOT NULL UNIQUE,
+MODIFY PreferredPaymentMethod varchar(100) NOT NULL;
+
+ALTER TABLE DistributionCenter
+MODIFY DODAddressCode varchar(10) NOT NULL UNIQUE,
+MODIFY SiteName varchar(100) NOT NULL,
+MODIFY ShippingCity varchar(100) NOT NULL,
+MODIFY ShippingState varchar(100) NOT NULL,
+MODIFY ShippingZip varchar(100) NOT NULL;
+
+ALTER TABLE Orders
+MODIFY UserID int NOT NULL,
+MODIFY SiteID int NOT NULL,
+MODIFY OrderDetails varchar(255) NOT NULL,
+MODIFY TotalCost decimal(10,2) NOT NULL,
+MODIFY OrderStatus varchar(255) NOT NULL CHECK (OrderStatus IN ('Pending', 'Completed', 'Canceled'));
+
+ALTER TABLE Products
+MODIFY ProductName varchar(200) NOT NULL UNIQUE,
+MODIFY Price decimal(5,2) NOT NULL CHECK (Price > 0),
+MODIFY ItemDescription varchar(255) NOT NULL;
+
+ALTER TABLE Inventory
+MODIFY CurrentStockLevel int NOT NULL CHECK (CurrentStockLevel >= 0);
+
+ALTER TABLE Authentication
+MODIFY HashedPassword varchar(100) NOT NULL,
+MODIFY PasswordChangeRequired boolean NOT NULL;
 
 DELIMITER //
 
