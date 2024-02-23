@@ -148,3 +148,65 @@ BEGIN
 END //
 
 DELIMITER ;
+
+CREATE VIEW adminUsersView AS
+SELECT u.userID AS userId, u.firstName AS firstName, u.lastName AS lastName, u.userEmail AS userEmail, u.preferredPaymentMethod AS preferredPaymentMethod, ur.itemDescription AS userRole
+FROM Users u
+JOIN UserRole ur ON u.userRoleID = ur.userRoleID
+WHERE u.isDeleted = FALSE;
+
+
+CREATE VIEW adminInventoryView AS
+SELECT p.productID AS productId, p.productName AS productName, p.productColor AS productColor, p.itemDescription AS itemDescription, p.price AS price, i.currentStockLevel AS currentStockLevel
+FROM Products p
+JOIN Inventory i ON p.productID = i.productID;
+
+
+CREATE VIEW userProfiles AS 
+SELECT users.userID AS userID, users.firstName AS firstName, users.lastName AS lastName, users.userEmail AS userEmail, users.preferredPaymentMethod AS preferredPaymentMethod, userRole.itemDescription AS userRole 
+FROM users 
+JOIN userRole ON users.userRoleID = userRole.userRoleID;
+
+
+CREATE VIEW productDetailView AS
+SELECT p.productID AS productId, 
+       p.productName AS productName, 
+       p.productColor AS productColor, 
+       p.itemDescription AS itemDescription, 
+       p.price AS price, 
+       i.currentStockLevel AS currentStockLevel
+FROM Products p
+JOIN Inventory i ON p.productID = i.productID;
+
+
+CREATE VIEW distributionCenterView AS
+SELECT s.siteID AS siteId, s.dODAddressCode AS dODAddressCode, s.facilityNo AS facilityNo, s.siteName AS siteName, s.sitePhone AS sitePhone, s.shippingAddress AS shippingAddress, s.shippingCity AS shippingCity, s.shippingState AS shippingState, s.shippingZip AS shippingZip
+FROM DistributionCenter s;
+
+
+CREATE VIEW orderView AS
+SELECT o.orderID AS orderId, o.userID AS userId, u.firstName AS userFirstName, u.lastName AS userLastName, o.siteID AS siteId, s.siteName AS siteName, o.orderDetails AS orderDetails, o.totalCost AS totalCost, o.orderStatus AS orderStatus
+FROM Orders o
+JOIN Users u ON o.userID = u.userID
+JOIN DistributionCenter s ON o.siteID = s.siteID
+WHERE u.isDeleted = FALSE;
+
+
+CREATE VIEW paymentNotificationsView AS 
+SELECT paymentNotification.paymentID AS paymentID, orders.orderID AS orderID, users.firstName AS firstName, users.lastName AS lastName, paymentNotification.timestamp AS timestamp 
+FROM paymentNotification 
+JOIN orders ON paymentNotification.orderID = orders.orderID 
+JOIN users ON orders.userID = users.userID;
+
+
+CREATE VIEW warehouseNotificationsView AS 
+SELECT warehouseNotification.notificationID AS notificationID, orders.orderID AS orderID, users.firstName AS firstName, users.lastName AS lastName, warehouseNotification.notificationTimestamp AS notificationTimestamp, distributionCenter.siteName AS siteName FROM warehouseNotification 
+JOIN orders ON warehouseNotification.orderID = orders.orderID 
+JOIN users ON orders.userID = users.userID 
+JOIN distributionCenter ON warehouseNotification.siteID = distributionCenter.siteID;
+
+
+CREATE VIEW userActivityLogs AS 
+SELECT auditLog.logID AS logID, users.firstName AS firstName, users.lastName AS lastName, auditLog.activityType AS activityType, auditLog.activityTimestamp AS activityTimestamp, auditLog.itemDescription AS itemDescription 
+FROM auditLog 
+JOIN users ON auditLog.userID = users.userID;
