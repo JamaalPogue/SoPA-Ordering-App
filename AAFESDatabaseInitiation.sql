@@ -1,4 +1,6 @@
-CREATE DATABASE AAFESOrder;
+DROP DATABASE IF EXISTS AAFESOrder;
+CREATE DATABASE IF NOT EXISTS AAFESOrder;
+USE AAFESOrder;
 
 CREATE TABLE UserRole (
   UserRoleID int NOT NULL,
@@ -112,29 +114,17 @@ CREATE TABLE PaymentNotification (
 
 
 ALTER TABLE Users ADD FOREIGN KEY (UserRoleID) REFERENCES UserRole (UserRoleID);
-
 ALTER TABLE Authentication ADD FOREIGN KEY (UserID) REFERENCES Users (UserID);
-
 ALTER TABLE Orders ADD FOREIGN KEY (UserID) REFERENCES Users (UserID);
-
 ALTER TABLE Orders ADD FOREIGN KEY (SiteID) REFERENCES DistributionCenter (SiteID);
-
 ALTER TABLE OrderDetail ADD FOREIGN KEY (OrderID) REFERENCES Orders (OrderID);
-
 ALTER TABLE OrderDetail ADD FOREIGN KEY (ProductID) REFERENCES Products (ProductID);
-
 ALTER TABLE OrderDetail ADD FOREIGN KEY (CustomizationID) REFERENCES Customization (CustomizationID);
-
 ALTER TABLE Inventory ADD FOREIGN KEY (ProductID) REFERENCES Products (ProductID);
-
 ALTER TABLE AuditLog ADD FOREIGN KEY (UserID) REFERENCES Users (UserID);
-
 ALTER TABLE WarehouseNotification ADD FOREIGN KEY (OrderID) REFERENCES Orders (OrderID);
-
 ALTER TABLE WarehouseNotification ADD FOREIGN KEY (SiteID) REFERENCES DistributionCenter (SiteID);
-
 ALTER TABLE PaymentNotification ADD FOREIGN KEY (OrderID) REFERENCES Orders (OrderID);
-
 ALTER TABLE users ADD COLUMN isDeleted BOOLEAN DEFAULT FALSE; 
 
 ALTER TABLE UserRole
@@ -143,7 +133,6 @@ MODIFY ItemDescription varchar(50) NOT NULL UNIQUE;
 ALTER TABLE Users
 MODIFY FirstName varchar(100) NOT NULL,
 MODIFY LastName varchar(100) NOT NULL,
-MODIFY UserRoleID int NOT NULL,
 MODIFY UserEmail varchar(100) NOT NULL UNIQUE,
 MODIFY PreferredPaymentMethod varchar(100) NOT NULL;
 
@@ -155,8 +144,6 @@ MODIFY ShippingState varchar(100) NOT NULL,
 MODIFY ShippingZip varchar(100) NOT NULL;
 
 ALTER TABLE Orders
-MODIFY UserID int NOT NULL,
-MODIFY SiteID int NOT NULL,
 MODIFY OrderDetails varchar(255) NOT NULL,
 MODIFY TotalCost decimal(10,2) NOT NULL,
 MODIFY OrderStatus varchar(255) NOT NULL CHECK (OrderStatus IN ('Pending', 'Completed', 'Canceled'));
