@@ -4,14 +4,14 @@ USE AAFESOrder;
 
 CREATE TABLE UserRole (
   UserRoleID int NOT NULL,
-  ItemDescription varchar(50),
+  RoleDescription varchar(50) UNIQUE,
   PRIMARY KEY (UserRoleID)
 );
 
 CREATE TABLE Users (
   UserID int NOT NULL,
-  FirstName varchar(100),
-  LastName varchar(100),
+  FirstName varchar(100) NOT NULL,
+  LastName varchar(100) NOT NULL,
   UserRoleID int,
   UserEmail varchar(100),
   PreferredPaymentMethod varchar(100),
@@ -21,15 +21,15 @@ CREATE TABLE Users (
 CREATE TABLE DistributionCenter (
   SiteID int NOT NULL,
   DODAddressCode varchar(10),
-  FacilityNo int,
+  FacilityNo int NOT NULL,
   FacilityNoLong int,
-  SiteName varchar(100),
+  SiteName varchar(255),
   SitePhone varchar(100),
-  ShippingAddress varchar(100),
-  ShippingAddress2 varchar(100),
-  ShippingAddress3 varchar(100),
-  ShippingAddress4 varchar(100),
-  ShippingCity varchar(100),
+  ShippingAddress varchar(255),
+  ShippingAddress2 varchar(255),
+  ShippingAddress3 varchar(255),
+  ShippingAddress4 varchar(255),
+  ShippingCity varchar(255),
   ShippingState varchar(100),
   ShippingZip varchar(100),
   PRIMARY KEY (SiteID)
@@ -41,7 +41,7 @@ CREATE TABLE Orders (
   SiteID int,
   OrderDetails varchar(255),
   TotalCost decimal(10,2),
-  OrderStatus varchar(255),
+  OrderStatus varchar(255) CHECK (OrderStatus IN ('Pending', 'Completed', 'Canceled')),
   PRIMARY KEY (OrderID)
 );
 
@@ -50,7 +50,7 @@ CREATE TABLE Authentication (
   UserID int,
   HashedPassword varchar(100),
   LastPasswordChangeDate date,
-  PasswordChangeRequired boolean,
+  PasswordChangeRequired boolean DEFAULT FALSE,
   PRIMARY KEY (AuthenticationID)
 );
 
@@ -66,23 +66,23 @@ CREATE TABLE OrderDetail (
 
 CREATE TABLE Customization (
   CustomizationID int NOT NULL,
-  ItemDescription varchar(50),
+  ItemDescription varchar(255),
   PRIMARY KEY (CustomizationID)  
 );
 
 CREATE TABLE Products (
   ProductID int NOT NULL,
-  ProductName varchar(200),
-  ProductColor varchar(50),
+  ProductName varchar(255) NOT NULL UNIQUE,
+  ProductColor varchar(100),
   ItemDescription varchar(255),
-  Price decimal(5,2),
+  Price decimal(5,2)  CHECK (Price >= 0),
   PRIMARY KEY (ProductID)
 );
 
 CREATE TABLE Inventory (
   InventoryID int NOT NULL,
   ProductID int,
-  CurrentStockLevel int,
+  CurrentStockLevel int NOT NULL CHECK (CurrentStockLevel >= 0),
   PRIMARY KEY (InventoryID)
 );
 
@@ -127,39 +127,6 @@ ALTER TABLE WarehouseNotification ADD FOREIGN KEY (SiteID) REFERENCES Distributi
 ALTER TABLE PaymentNotification ADD FOREIGN KEY (OrderID) REFERENCES Orders (OrderID);
 ALTER TABLE users ADD COLUMN isDeleted BOOLEAN DEFAULT FALSE; 
 
-ALTER TABLE UserRole
-MODIFY ItemDescription varchar(50) NOT NULL UNIQUE;
-
-ALTER TABLE Users
-MODIFY FirstName varchar(100) NOT NULL,
-MODIFY LastName varchar(100) NOT NULL,
-MODIFY UserEmail varchar(100) NOT NULL UNIQUE,
-MODIFY PreferredPaymentMethod varchar(100) NOT NULL;
-
-ALTER TABLE DistributionCenter
-MODIFY DODAddressCode varchar(10) NOT NULL UNIQUE,
-MODIFY SiteName varchar(100) NOT NULL,
-MODIFY ShippingCity varchar(100) NOT NULL,
-MODIFY ShippingState varchar(100) NOT NULL,
-MODIFY ShippingZip varchar(100) NOT NULL;
-
-ALTER TABLE Orders
-MODIFY OrderDetails varchar(255) NOT NULL,
-MODIFY TotalCost decimal(10,2) NOT NULL,
-MODIFY OrderStatus varchar(255) NOT NULL CHECK (OrderStatus IN ('Pending', 'Completed', 'Canceled'));
-
-ALTER TABLE Products
-MODIFY ProductName varchar(200) NOT NULL UNIQUE,
-MODIFY Price decimal(5,2) NOT NULL CHECK (Price > 0),
-MODIFY ItemDescription varchar(255) NOT NULL;
-
-ALTER TABLE Inventory
-MODIFY CurrentStockLevel int NOT NULL CHECK (CurrentStockLevel >= 0);
-
-ALTER TABLE Authentication
-MODIFY HashedPassword varchar(100) NOT NULL,
-MODIFY PasswordChangeRequired boolean NOT NULL;
-
 DELIMITER //
 
 CREATE PROCEDURE softDeleteUser (IN deletedUserID INT)
@@ -171,8 +138,20 @@ END //
 
 DELIMITER ;
 
+DELIMITER //
+
+CREATE PROCEDURE passwordChangeVerification (IN PasswordChangeRequired BOOLEAN)
+BEGIN
+    UPDATE Authentication
+	SET PasswordChangeRequired = TRUE
+	WHERE hashedPassword IS NULL;
+END //
+
+DELIMITER ;
+
+
 CREATE VIEW adminUsersView AS
-SELECT u.userID AS userId, u.firstName AS firstName, u.lastName AS lastName, u.userEmail AS userEmail, u.preferredPaymentMethod AS preferredPaymentMethod, ur.itemDescription AS userRole
+SELECT u.userID AS userId, u.firstName AS firstName, u.lastName AS lastName, u.userEmail AS userEmail, u.preferredPaymentMethod AS preferredPaymentMethod, ur.roleDescription AS userRole
 FROM Users u
 JOIN UserRole ur ON u.userRoleID = ur.userRoleID
 WHERE u.isDeleted = FALSE;
@@ -185,7 +164,7 @@ JOIN Inventory i ON p.productID = i.productID;
 
 
 CREATE VIEW userProfiles AS 
-SELECT users.userID AS userID, users.firstName AS firstName, users.lastName AS lastName, users.userEmail AS userEmail, users.preferredPaymentMethod AS preferredPaymentMethod, userRole.itemDescription AS userRole 
+SELECT users.userID AS userID, users.firstName AS firstName, users.lastName AS lastName, users.userEmail AS userEmail, users.preferredPaymentMethod AS preferredPaymentMethod, userRole.roleDescription AS userRole 
 FROM users 
 JOIN userRole ON users.userRoleID = userRole.userRoleID;
 
