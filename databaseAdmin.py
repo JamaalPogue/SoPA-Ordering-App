@@ -1,7 +1,7 @@
 import mysql.connector
 from mysql.connector import Error
 
-def connectDatabase(host_name, user_name, user_password, db_name):
+def connectToDatabase(host_name, user_name, user_password, db_name):
     connection = None
     try:
         connection = mysql.connector.connect(
@@ -35,7 +35,7 @@ if __name__ == "__main__":
     db_name = "aafesorder"
 
     # Initialize database connection
-    connection = connectDatabase(host_name, user_name, user_password, db_name)
+    connection = connectToDatabase(host_name, user_name, user_password, db_name)
 
     # Initialize database cursor
     cursor = connection.cursor()
