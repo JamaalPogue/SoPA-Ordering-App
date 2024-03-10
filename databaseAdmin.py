@@ -104,6 +104,7 @@ def runAlterStatements(connection, cursor):
     connection.commit()
     print("Alter statements successful.")
 
+# Initial Procedure creation
 def createProcedureSoftDeleteUser(connection,cursor):
     softDeleteUser = """
     CREATE PROCEDURE IF NOT EXISTS softDeleteUser (IN deletedUserID INT)
@@ -116,6 +117,128 @@ def createProcedureSoftDeleteUser(connection,cursor):
     cursor.execute(softDeleteUser)
     connection.commit()
     print("softDeleteUser procedure created.")
+
+def createProcedurePasswordChangeVerification(connection,cursor):
+    passwordChangeVerification = """
+    CREATE PROCEDURE IF NOT EXISTS passwordChangeVerification (IN PasswordChangeRequired BOOLEAN)
+    BEGIN
+        UPDATE Authentication
+        SET PasswordChangeRequired = TRUE
+        WHERE hashedPassword IS NULL;
+    END
+    """
+    cursor.execute(passwordChangeVerification)
+    connection.commit()
+    print("passwordChangeVerification procedure created.")
+
+def createViewAdminUsersView(connection,cursor):
+    adminUsersView = """
+    CREATE OR REPLACE VIEW adminUsersView AS
+    SELECT u.userID AS userId, u.firstName AS firstName, u.lastName AS lastName, u.userEmail AS userEmail, u.preferredPaymentMethod AS preferredPaymentMethod, ur.roleDescription AS userRole
+        FROM Users u
+        JOIN UserRole ur ON u.userRoleID = ur.userRoleID
+        WHERE u.isDeleted = FALSE;
+    """
+    cursor.execute(adminUsersView)
+    connection.commit()
+    print("adminUsersView view created.")
+
+def createViewAdminInventoryView(connection,cursor):
+    adminInventoryView = """
+    CREATE OR REPLACE VIEW adminInventoryView AS
+        SELECT p.productID AS productId, p.productName AS productName, p.productColor AS productColor, p.itemDescription AS itemDescription, p.price AS price, i.currentStockLevel AS currentStockLevel
+        FROM Products p
+        JOIN Inventory i ON p.productID = i.productID;
+    """
+    cursor.execute(adminInventoryView)
+    connection.commit()
+    print("adminInventoryView view created.")
+
+def createViewUserProfiles(connection,cursor):
+    userProfiles = """
+    CREATE OR REPLACE VIEW userProfiles AS 
+    SELECT users.userID AS userID, users.firstName AS firstName, users.lastName AS lastName, users.userEmail AS userEmail, users.preferredPaymentMethod AS preferredPaymentMethod, userRole.roleDescription AS userRole 
+    FROM users 
+    JOIN userRole ON users.userRoleID = userRole.userRoleID;
+    """
+    cursor.execute(userProfiles)
+    connection.commit()
+    print("userProfiles view created.")
+
+def createViewProductDetailView(connection,cursor):
+    productDetailView = """
+    CREATE OR REPLACE VIEW productDetailView AS
+    SELECT p.productID AS productId, 
+           p.productName AS productName, 
+           p.productColor AS productColor, 
+           p.itemDescription AS itemDescription, 
+           p.price AS price, 
+           i.currentStockLevel AS currentStockLevel
+    FROM Products p
+    JOIN Inventory i ON p.productID = i.productID;
+    """
+    cursor.execute(productDetailView)
+    connection.commit()
+    print("productDetailView view created.")
+
+def createViewDistributionCenterView(connection,cursor):
+    distributionCenterView = """
+    CREATE OR REPLACE VIEW distributionCenterView AS
+    SELECT s.siteID AS siteId, s.dODAddressCode AS dODAddressCode, s.facilityNo AS facilityNo, s.siteName AS siteName, s.sitePhone AS sitePhone, s.shippingAddress AS shippingAddress, s.shippingCity AS shippingCity, s.shippingState AS shippingState, s.shippingZip AS shippingZip
+    FROM DistributionCenter s;
+    """
+    cursor.execute(distributionCenterView)
+    connection.commit()
+    print("distributionCenterView view created.")
+
+def createViewOrderView(connection,cursor):
+    orderView = """
+    CREATE OR REPLACE VIEW orderView AS
+    SELECT o.orderID AS orderId, o.userID AS userId, u.firstName AS userFirstName, u.lastName AS userLastName, o.siteID AS siteId, s.siteName AS siteName, o.orderDetails AS orderDetails, o.totalCost AS totalCost, o.orderStatus AS orderStatus
+    FROM Orders o
+    JOIN Users u ON o.userID = u.userID
+    JOIN DistributionCenter s ON o.siteID = s.siteID
+    WHERE u.isDeleted = FALSE;
+    """
+    cursor.execute(orderView)
+    connection.commit()
+    print("orderView view created.")
+
+def createViewWarehouseNotificationsView(connection,cursor):
+    warehouseNotificationsView = """
+    CREATE OR REPLACE VIEW warehouseNotificationsView AS 
+    SELECT warehouseNotification.notificationID AS notificationID, orders.orderID AS orderID, users.firstName AS firstName, users.lastName AS lastName, warehouseNotification.notificationTimestamp AS notificationTimestamp, distributionCenter.siteName AS siteName FROM warehouseNotification 
+    JOIN orders ON warehouseNotification.orderID = orders.orderID 
+    JOIN users ON orders.userID = users.userID 
+    JOIN distributionCenter ON warehouseNotification.siteID = distributionCenter.siteID;
+    """
+    cursor.execute(warehouseNotificationsView)
+    connection.commit()
+    print("warehouseNotificationsView view created.")
+
+
+def createViewPaymentNotificationsView(connection,cursor):
+    paymentNotificationsView = """
+    CREATE OR REPLACE VIEW paymentNotificationsView AS 
+    SELECT paymentNotification.paymentID AS paymentID, orders.orderID AS orderID, users.firstName AS firstName, users.lastName AS lastName, paymentNotification.timestamp AS timestamp 
+    FROM paymentNotification 
+    JOIN orders ON paymentNotification.orderID = orders.orderID 
+    JOIN users ON orders.userID = users.userID;
+    """
+    cursor.execute(paymentNotificationsView)
+    connection.commit()
+    print("paymentNotificationsView view created.")
+
+def createViewUserActivityLogs(connection,cursor):
+    userActivityLogs = """
+    CREATE OR REPLACE VIEW userActivityLogs AS 
+    SELECT auditLog.logID AS logID, users.firstName AS firstName, users.lastName AS lastName, auditLog.activityType AS activityType, auditLog.activityTimestamp AS activityTimestamp, auditLog.itemDescription AS itemDescription 
+    FROM auditLog 
+    JOIN users ON auditLog.userID = users.userID;
+    """
+    cursor.execute(userActivityLogs)
+    connection.commit()
+    print("userActivityLogs view created.")
 
 # Read all from user table
 def readAllUsers(cursor):
@@ -156,6 +279,19 @@ if __name__ == "__main__":
 
     # Create procedures
     createProcedureSoftDeleteUser(connection, cursor)
+    createProcedurePasswordChangeVerification(connection, cursor)
+
+    # Create views
+    createViewAdminUsersView(connection, cursor)
+    createViewAdminInventoryView(connection, cursor)
+    createViewUserProfiles(connection, cursor)
+    createViewProductDetailView(connection, cursor)
+    createViewDistributionCenterView(connection, cursor)
+    createViewOrderView(connection, cursor)
+    createViewPaymentNotificationsView(connection, cursor)
+    createViewWarehouseNotificationsView(connection, cursor)
+    createViewUserActivityLogs(connection, cursor)
+
 
     # Read user table
     readAllUsers(cursor)
