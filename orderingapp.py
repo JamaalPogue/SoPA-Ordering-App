@@ -10,6 +10,8 @@ class App(tk.Tk):
     def __init__(self):
         super().__init__()
         
+        self.current_user_id = None  # Initialize current_user_id
+        
         # Start the app in fullscreen mode
         self.attributes('-fullscreen', True)
 
@@ -58,69 +60,67 @@ class BaseFrame(tk.Frame):
         # Widgets specific to each frame are added in their respective classes
         pass
 
-
 class LoginFrame(BaseFrame):
     def create_widgets(self):
-        # Centered frame for widgets
         center_frame = tk.Frame(self, bg=self.colors['bg'])
         center_frame.place(relx=0.5, rely=0.5, anchor="center")
 
         tk.Label(center_frame, image=self.logo_image, bg=self.colors['bg']).grid(row=0, columnspan=2, pady=10)
-        tk.Label(center_frame, text="Username", bg=self.colors['bg'], font=("Helvetica", 14)).grid(row=1, column=0, pady=10, sticky="e")
-        self.username_entry = tk.Entry(center_frame, font=("Helvetica", 14))
-        self.username_entry.grid(row=1, column=1, pady=10, sticky="ew")
+        tk.Label(center_frame, text="UserID", bg=self.colors['bg'], font=("Helvetica", 14)).grid(row=1, column=0, pady=10, sticky="e")
+        self.user_id_entry = tk.Entry(center_frame, font=("Helvetica", 14))
+        self.user_id_entry.grid(row=1, column=1, pady=10, sticky="ew")
         tk.Label(center_frame, text="Password", bg=self.colors['bg'], font=("Helvetica", 14)).grid(row=2, column=0, pady=10, sticky="e")
         self.password_entry = tk.Entry(center_frame, show="*", font=("Helvetica", 14))
         self.password_entry.grid(row=2, column=1, pady=10, sticky="ew")
+
         login_button = tk.Button(center_frame, text="Login", bg=self.colors['button_bg'], fg=self.colors['button_fg'],
                                  font=("Helvetica", 14), activebackground=self.colors['button_active_bg'],
                                  command=self.login)
         login_button.grid(row=3, columnspan=2, pady=20)
+
         exit_button = tk.Button(self, text="Exit Application", bg=self.colors['exit_button_bg'], fg="white",
                                 command=self.master.destroy, font=("Arial", 12))
         exit_button.place(relx=1.0, rely=0.0, anchor="ne", width=120, height=50)
 
     def login(self):
-        username = self.username_entry.get()
+        user_email = self.user_id_entry.get()  # Assuming this entry is used for email
         password = self.password_entry.get()
 
-        # Check if both username and password are blank
-        if not username and not password:
-            # Allow login for blank username and password
-            self.master.show_frame(DashboardFrame)
+        if not user_email or not password:
+            messagebox.showerror("Login Failed", "Email or password cannot be blank.")
             return
 
-        # Connect to the MySQL database
         try:
             connection = mysql.connector.connect(
-                host="your_host",
-                user="your_username",
-                password="your_password",
-                database="your_database"
+                host="localhost",
+                user="root",
+                passwd="SoPAStudentDB!#!",
+                database="aafesorder"
             )
-            cursor = connection.cursor()
+            cursor = connection.cursor(buffered=True)
 
-            # Hash the password
+            # Hash the password entered by the user
             hashed_password = hashlib.sha256(password.encode()).hexdigest()
 
-            # Execute the query to check if the credentials are valid
-            query = "SELECT * FROM YourTableName WHERE Username = %s AND HashedPassword = %s"
-            cursor.execute(query, (username, hashed_password))
+            # Adjusted query to join Users and Authentication tables
+            query = """
+            SELECT Users.UserID 
+            FROM Users 
+            JOIN Authentication 
+            ON Users.UserID = Authentication.UserID 
+            WHERE Users.UserEmail = %s AND Authentication.HashedPassword = %s
+            """
+            cursor.execute(query, (user_email, hashed_password))
             result = cursor.fetchone()
 
             if result:
-                # Credentials are valid, navigate to DashboardFrame
+                self.master.current_user_id = result[0]  # Storing the current user's ID
                 self.master.show_frame(DashboardFrame)
             else:
-                # Invalid credentials, display an error message box
-                messagebox.showerror("Login Attempt Failed", "Invalid username or password.")
-
-        except mysql.connector.Error as error:
-            # Handle any errors that occur during database connection or query execution
-            print("Error:", error)
-
+                messagebox.showerror("Login Failed", "Invalid email or password.")
+        except Error as error:
+            messagebox.showerror("Database Error", str(error))
         finally:
-            # Close the database connection
             if connection.is_connected():
                 cursor.close()
                 connection.close()
@@ -148,7 +148,6 @@ class DashboardFrame(BaseFrame):
         exit_button = tk.Button(self, text="Exit Application", bg=self.colors['exit_button_bg'], fg="white",
                                 command=self.master.destroy, font=("Arial", 12))
         exit_button.place(relx=1.0, rely=0.0, anchor="ne", width=120, height=50)
-
 
 class ProductOrderFrame(BaseFrame):
     def create_widgets(self):
@@ -224,6 +223,86 @@ class CartFrame(BaseFrame):
         pass
 
 
+    def create_widgets(self):
+        center_frame = tk.Frame(self, bg=self.colors['bg'])
+        center_frame.place(relx=0.5, rely=0.5, anchor="center")
+
+        tk.Label(center_frame, text="Update User Information", bg=self.colors['bg'], font=("Helvetica", 16)).grid(row=0, columnspan=2, pady=10)
+
+        # Display current user information
+        tk.Label(center_frame, text="First Name:", bg=self.colors['bg']).grid(row=1, column=0, padx=5, pady=5, sticky="e")
+        self.first_name_var = tk.StringVar()
+        self.first_name_entry = tk.Entry(center_frame, textvariable=self.first_name_var)
+        self.first_name_entry.grid(row=1, column=1, padx=5, pady=5, sticky="w")
+
+        tk.Label(center_frame, text="Last Name:", bg=self.colors['bg']).grid(row=2, column=0, padx=5, pady=5, sticky="e")
+        self.last_name_var = tk.StringVar()
+        self.last_name_entry = tk.Entry(center_frame, textvariable=self.last_name_var)
+        self.last_name_entry.grid(row=2, column=1, padx=5, pady=5, sticky="w")
+
+        tk.Label(center_frame, text="User Role:", bg=self.colors['bg']).grid(row=3, column=0, padx=5, pady=5, sticky="e")
+        self.user_role_var = tk.StringVar()
+        self.user_role_entry = tk.Entry(center_frame, textvariable=self.user_role_var, state="readonly")  # Disable user role entry
+        self.user_role_entry.grid(row=3, column=1, padx=5, pady=5, sticky="w")
+
+        tk.Label(center_frame, text="User Email:", bg=self.colors['bg']).grid(row=4, column=0, padx=5, pady=5, sticky="e")
+        self.user_email_var = tk.StringVar()
+        self.user_email_entry = tk.Entry(center_frame, textvariable=self.user_email_var)
+        self.user_email_entry.grid(row=4, column=1, padx=5, pady=5, sticky="w")
+
+        tk.Label(center_frame, text="Preferred Payment Method:", bg=self.colors['bg']).grid(row=5, column=0, padx=5, pady=5, sticky="e")
+        self.preferred_payment_var = tk.StringVar()
+        self.preferred_payment_entry = tk.Entry(center_frame, textvariable=self.preferred_payment_var)
+        self.preferred_payment_entry.grid(row=5, column=1, padx=5, pady=5, sticky="w")
+
+        # Update User Information Button
+        update_user_info_button = tk.Button(center_frame, text="Update Information", command=self.update_user_info,
+                                            bg=self.colors['button_bg'], fg=self.colors['button_fg'],
+                                            font=("Helvetica", 14))
+        update_user_info_button.grid(row=6, columnspan=2, pady=20)
+
+        # Button to navigate back
+        back_button = tk.Button(center_frame, text="Return to User Settings", bg=self.colors['button_bg'], fg=self.colors['button_fg'],
+                                font=("Helvetica", 14), activebackground=self.colors['button_active_bg'],
+                                command=lambda: self.master.show_frame(UserSettingsFrame))
+        back_button.grid(row=7, columnspan=2, pady=10)
+
+    def update_user_info(self):
+        try:
+            connection = mysql.connector.connect(
+                host="localhost",
+                user="root",
+                passwd="SoPAStudentDB!#!",
+                database="aafesorder"
+            )
+            cursor = connection.cursor()
+
+            # Get updated user information from entry widgets
+            updated_first_name = self.first_name_var.get()
+            updated_last_name = self.last_name_var.get()
+            updated_user_email = self.user_email_var.get()
+            updated_preferred_payment = self.preferred_payment_var.get()
+
+            # Update user information in the database
+            query = "UPDATE Users SET FirstName = %s, LastName = %s, UserEmail = %s, PreferredPaymentMethod = %s WHERE UserID = %s"
+            cursor.execute(query, (updated_first_name, updated_last_name, updated_user_email, updated_preferred_payment, self.master.current_user_id))
+            connection.commit()
+            print("User information updated successfully!")
+        except Error as e:
+            print("Error updating user information:", e)
+        finally:
+            if connection.is_connected():
+                cursor.close()
+                connection.close()
+
+                # Clear entry widgets after updating user information
+                self.clear_entry_widgets()
+
+    def clear_entry_widgets(self):
+        self.first_name_entry.delete(0, 'end')
+        self.last_name_entry.delete(0, 'end')
+        self.user_email_entry.delete(0, 'end')
+        self.preferred_payment_entry.delete(0, 'end')
 
 class UserSettingsFrame(BaseFrame):
     def create_widgets(self):
@@ -366,15 +445,6 @@ class UpdateUserInfoFrame(BaseFrame):
             "user_email": self.user_email_var.get(),
             "preferred_payment_method": self.preferred_payment_var.get()
         }
-
-        # Placeholder for the function's implementation
-        # Implement the logic to update user information in the database
-        print("Updated User Information:", updated_user_info)
-
-
-
-
-
 
 
 def connectToDatabase(host_name, user_name, user_password, db_name):
