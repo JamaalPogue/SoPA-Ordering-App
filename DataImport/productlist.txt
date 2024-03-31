@@ -1,0 +1,2 @@
+1	Bubba 40 oz. Radiant Stainless Steel Rubberized Water Bottle	Cobalt	Description	LOAD_FILE('/images/test.jpg')	30.99
+2	Bubba 40 oz. Radiant Stainless Steel Rubberized Water Bottle	Licorice	Description	LOAD_FILE('/images/test.jpg')	30.99
