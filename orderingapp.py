@@ -394,13 +394,13 @@ def connectToDatabase(host_name, user_name, user_password, db_name):
 
 # This is the block of table creation statements
 def createUserRoleTable(connection, cursor):
-    cursor.execute("CREATE TABLE IF NOT EXISTS UserRole (UserRoleID int NOT NULL,RoleDescription varchar(50) UNIQUE,PRIMARY KEY (UserRoleID))")
+    cursor.execute("CREATE TABLE IF NOT EXISTS UserRole (UserRoleID int NOT NULL AUTO_INCREMENT,RoleDescription varchar(50) UNIQUE,PRIMARY KEY (UserRoleID))")
     connection.commit()
     print("UserRole table created.")
 
 def createUsersTable(connection, cursor):
     cursor.execute(
-        "CREATE TABLE IF NOT EXISTS  Users (UserID int NOT NULL, FirstName varchar(100) NOT NULL, LastName varchar(100) NOT NULL, UserRoleID int, UserEmail varchar(100), PreferredPaymentMethod varchar(100), isDeleted BOOLEAN DEFAULT FALSE, PRIMARY KEY (UserID))")
+        "CREATE TABLE IF NOT EXISTS  Users (UserID int NOT NULL AUTO_INCREMENT, FirstName varchar(100) NOT NULL, LastName varchar(100) NOT NULL, UserRoleID int, UserEmail varchar(100), PreferredPaymentMethod varchar(100), isDeleted BOOLEAN DEFAULT FALSE, PRIMARY KEY (UserID))")
     connection.commit()
     print("Users table created.")
 
@@ -618,12 +618,39 @@ def createViewUserActivityLogs(connection,cursor):
 
 # Read all from user table
 def readAllUsers(cursor):
-    sql_query = ("SELECT * FROM users")
+    sql_query = ("SELECT * FROM Users")
     cursor.execute(sql_query)
     print("This is a test to pull all data from users table.")
     print(cursor.fetchall())
     print("Test successful. Congrats, this works.")
 
+
+def insertProducts(connection, cursor):
+    insertIntoProducts = """
+    INSERT IGNORE INTO Products (ProductID, ProductName, ProductColor, ItemDescription, ProductImage, Price)
+    VALUES (667, 'Bubba 40oz Radiant Stainless Steel Rubberized Water Bottle', 'Blue', 'This is a product you should buy.', LOAD_FILE('/images/test.jpg'), 30.99);
+    """
+    cursor.execute(insertIntoProducts)
+    connection.commit()
+    print("Sample product data created.")
+
+def insertDistributionCenter(connection, cursor):
+    insertIntoDistributionCenter = """
+    INSERT IGNORE INTO DistributionCenter (SiteID, DODAddressCode, FacilityNo, FacilityNoLong, SiteName, SitePhone, ShippingAddress,ShippingAddress2, ShippingAddress3, ShippingAddress4, ShippingCity, ShippingState, ShippingZip)
+    VALUES (101, 'K885', '1010204', '3468142200', 'LRK LAKESIDE EXP/GAS', '501-988-4888', 'LAKESIDE EXPRESS', 'BLDG 1996 CHIEF WILLIAMS', '', '', 'LITTLE ROCK', 'AR', '720990000');
+    """
+    cursor.execute(insertIntoDistributionCenter)
+    connection.commit()
+    print("Sample distribution center data created.")
+
+def insertUsers(connection, cursor):
+    insertIntoUsers = """
+    INSERT IGNORE INTO Users (UserID, FirstName, LastName, UserRoleID, UserEmail, PreferredPaymentMethod, isDeleted)
+    VALUES (10210, 'Johnny', 'Donuts', 1, 'jd@email.com', 'Paypal', FALSE);
+    """
+    cursor.execute(insertIntoUsers)
+    connection.commit()
+    print("Sample user data created.")
 
 if __name__ == "__main__":
 
@@ -669,10 +696,20 @@ if __name__ == "__main__":
     createViewWarehouseNotificationsView(connection, cursor)
     createViewUserActivityLogs(connection, cursor)
 
+    # Insert sample user into DB
+    insertUsers(connection, cursor)
+
+    # Inserting products into DB
+    insertProducts(connection, cursor)
+
+    # Insert sample warehouse DB
+    insertDistributionCenter(connection, cursor)
+
+
 
     # Read user table
     readAllUsers(cursor)
-    
+
     app = App()
     app.mainloop()
 
