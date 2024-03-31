@@ -436,7 +436,7 @@ def createCustomizationTable(connection, cursor):
 
 def createProductsTable(connection, cursor):
     cursor.execute(
-        "CREATE TABLE IF NOT EXISTS  Products (ProductID int NOT NULL, ProductName varchar(255) NOT NULL UNIQUE, ProductColor varchar(100), ItemDescription varchar(255), ProductImage blob, Price decimal(5,2)  CHECK (Price >= 0), PRIMARY KEY (ProductID))")
+        "CREATE TABLE IF NOT EXISTS  Products (ProductID int NOT NULL, ProductName varchar(255) NOT NULL UNIQUE, ProductColor varchar(100), ItemDescription blob, ProductImage blob, Price decimal(5,2)  CHECK (Price >= 0), PRIMARY KEY (ProductID))")
     connection.commit()
     print("Products table created.")
 
