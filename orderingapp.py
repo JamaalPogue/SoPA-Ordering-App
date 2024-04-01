@@ -705,6 +705,7 @@ def insertDistributionCenter(connection, cursor):
     connection.commit()
     print("Sample distribution center data created.")
 
+# This will insert a user into the database. For some reason, this isn't sticking, and I'm wondering if that has something to do with the front end dropping that off. Unsure, this will need to be revisited.
 def insertUsers(connection, cursor):
     insertIntoUsers = """
     INSERT IGNORE INTO Users (UserID, FirstName, LastName, UserRoleID, UserEmail, PreferredPaymentMethod, isDeleted)
