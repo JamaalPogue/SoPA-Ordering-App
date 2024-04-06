@@ -489,8 +489,8 @@ def runAlterStatements(connection, cursor):
     cursor.execute("ALTER TABLE WarehouseNotification ADD FOREIGN KEY (OrderID) REFERENCES Orders (OrderID);")
     cursor.execute("ALTER TABLE WarehouseNotification ADD FOREIGN KEY (SiteID) REFERENCES DistributionCenter (SiteID);")
     cursor.execute("ALTER TABLE PaymentNotification ADD FOREIGN KEY (OrderID) REFERENCES Orders (OrderID);")
-    cursor.execute("ALTER TABLE ProductColors ADD FOREIGN KEY (ProductID) REFERENCES Products (ProductID);")
-    cursor.execute("ALTER TABLE ProductColors ADD FOREIGN KEY (ColorListID) REFERENCES ColorList (ColorListID);")
+    cursor.execute("ALTER TABLE ProductColors ADD FOREIGN KEY (ColorListID) REFERENCES ColorList (ColorListID) ON DELETE NO ACTION ON UPDATE CASCADE;")
+    cursor.execute("ALTER TABLE ProductColors ADD FOREIGN KEY (ProductID) REFERENCES Products (ProductID) ON DELETE NO ACTION ON UPDATE CASCADE;")
     connection.commit()
     print("Alter statements successful.")
 
@@ -641,17 +641,17 @@ def readAllUsers(cursor):
 def insertProducts(connection, cursor):
     insertIntoProducts = """
     REPLACE INTO Products (ProductID, ProductName, ItemDescription, Price)
-    VALUES (101, 'Bubba 40oz Radiant Stainless Steel Rubberized Water Bottle', "Hanging with friends at a music festival or heading to the beach? Bring the bubba 40 oz. Radiant Stainless Steel Rubberized Water Bottle with Straw along for the fun. The leakproof lid is easy to open with just the push of a button so you can hydrate quickly without the mess. Plus, your favorite drinks stay cold for 12 hours thanks to the vacuum-insulated stainless steel. When you're done drinking, close the cap to help protect the spout and straw from dirt and grime and slide the button to lock it in place. A comfortable, pivotal carry handle lets you easily carry even a full bottle with you while walking along the beach or checking out the festival grounds. Size: 40 oz. Model: 2166196.", 30.99),
-    (102, 'Bubba Hero Mug', "Save your workday from cold coffee with the Bubba 18oz Hero Vacuum-Insulated Stainless Steel Travel Mug. Your drink stays hot up to 6 hours or cold up to 24 thanks to vacuum-insulated stainless steel, perfect in case you get stuck in a meeting and can't get back to your beverage. Sip from the leak-proof lid just by flipping up the locking flap, and snap it shut when you're finished to lock in the heat. A silicone base keeps the travel mug from sliding across your desk. When you're on the move, grab the comfortable handle and go! With the Hero Dual-Wall Vacuum-Insulated Stainless Steel Travel Mug, you're ready to get a handle on your day. Model: 2145787.", 25.99),
-    (103, 'Bubba Radiant Stainless Steel Rubberized Water Bottle with Straw 32 oz.', "Hanging with friends at a music festival or heading to the beach? Bring the Bubba Radiant Stainless Steel Rubberized Water Bottle with Straw, 32 oz., along for the fun. The leakproof lid is easy to open with just the push of a button so you can hydrate quickly without the mess. Plus, your favorite drinks stay cold for 12 hours thanks to the vacuum-insulated stainless steel. When you’re done drinking, close the cap to help protect the spout and straw from dirt and grime and slide the button to lock it in place. A comfortable, pivotable carry handle lets you easily carry the bottle with you while walking along the beach or checking out the festival grounds. Model: 2166132.", 26.99),
-    (104, 'Bubba Flo Refresh Crystle Ice Kids Water Bottle 16 oz.', "Teach your kids good hydration habits with the bubba Flo Kids 16 oz. Water Bottle with Silicone Sleeve. It features a leak-proof lid and a handy button lock to prevent accidental openings, keeping the inside of your car safe from spills. With a high-flow chug lid, kids can quickly hydrate without missing their turn on the monkey bars. A built-in spout cover keeps out dirt and germs.", 11.99),
-    (105, 'Bubba 32 oz. Radiant Stainless Steel Rubberized Water Bottle, Licorice', "Hanging with friends at a music festival or heading to the beach? Bring the bubba 32 oz. Radiant Stainless Steel Rubberized Water Bottle with Straw along for the fun. The leakproof lid is easy to open with just the push of a button so you can hydrate quickly without the mess. Plus, your favorite drinks stay cold for 12 hours thanks to the vacuum-insulated stainless steel. When you're done drinking, close the cap to help protect the spout and straw from dirt and grime and slide the button to lock it in place. A comfortable, pivotal carry handle lets you easily carry the bottle with you while walking along the beach or checking out the festival grounds. Size: 32 oz. Model: 2166127.", 26.99),
-    (201, 'GoFit Double Thick Yoga Mat', "The GoFit Yoga mat provides an excellent nonslip surface ideal for yoga practice and stretching routines. The top-quality GoFit yoga mat is twice as thick as a regular yoga mat. This mat has an extra-cushioned, airy surface, providing comfort and protection during specific yoga poses or Pilates mat work. Easily rolls up for storage and wipes clean with a damp towel. Includes a yoga position poster to get started. Model: GOFGF2XYOGA.", 39.99),
-    (202, 'GoFit Yoga Mat', "", 24.99),
-    (203, 'GoFit Pattern Yoga Mat with Yoga Pose Wall Chart', "The inspirational GoFit 24 x 68 in. Designer Yoga Mat expresses personal style while inspiring workouts at home or the studio. Closed-cell foam with a non-slip surface provides comfort and protection for Yoga poses, Pilates exercises, HIIT Yoga Fusion and stretching routines. The Designer Yoga Mat easily rolls up for storage and wipes clean with a damp towel, making every session inspirational, effective and efficient. Model: GF-PYM", 21.49),
-    (204, 'GoFit Summit Yoga Mat', "", 69.99),
-    (205, 'GoFit Yoga Kit: Basic Blue Mat, Foam Block, Strap and Yoga Pose Wall Chart', "Whether you are just getting started or need an extra Yoga kit to take anywhere, the GoFit Complete Yoga Kit has everything you need for a complete Yoga workout.", 25.50),
-    (206, 'GoFit Deluxe Pilates Foam Mat', "Get the professional grade mat that's just like the ones used in Pilates studios from GoFit. It is an absolute must for performing all the various forms, exercises and methods pertaining to Pilates in total comfort and style. It's a full 0.5 in. thick with closed cell air pockets to provide a soft, yet durable design. It also has a ribbed surface for a better feel during use and to provide a nonslip performance surface. Cleans with a damp cloth and rolls for easy storage. Style: GF-PMAT.", 27.99);
+    VALUES (101, 'Bubba 40oz Radiant Stainless Steel Rubberized Water Bottle', 'Hanging with friends at a music festival or heading to the beach? Bring the bubba 40 oz. Radiant Stainless Steel Rubberized Water Bottle with Straw along for the fun. The leakproof lid is easy to open with just the push of a button so you can hydrate quickly without the mess. Plus, your favorite drinks stay cold for 12 hours thanks to the vacuum-insulated stainless steel. When you''re done drinking, close the cap to help protect the spout and straw from dirt and grime and slide the button to lock it in place. A comfortable, pivotal carry handle lets you easily carry even a full bottle with you while walking along the beach or checking out the festival grounds. Size: 40 oz. Model: 2166196.', 30.99),
+    (102, 'Bubba Hero Mug', 'Save your workday from cold coffee with the Bubba 18oz Hero Vacuum-Insulated Stainless Steel Travel Mug. Your drink stays hot up to 6 hours or cold up to 24 thanks to vacuum-insulated stainless steel, perfect in case you get stuck in a meeting and can''t get back to your beverage. Sip from the leak-proof lid just by flipping up the locking flap, and snap it shut when you''re finished to lock in the heat. A silicone base keeps the travel mug from sliding across your desk. When you''re on the move, grab the comfortable handle and go! With the Hero Dual-Wall Vacuum-Insulated Stainless Steel Travel Mug, you''re ready to get a handle on your day. Model: 2145787.', 25.99),
+    (103, 'Bubba Radiant Stainless Steel Rubberized Water Bottle with Straw 32 oz.', 'Hanging with friends at a music festival or heading to the beach? Bring the Bubba Radiant Stainless Steel Rubberized Water Bottle with Straw, 32 oz., along for the fun. The leakproof lid is easy to open with just the push of a button so you can hydrate quickly without the mess. Plus, your favorite drinks stay cold for 12 hours thanks to the vacuum-insulated stainless steel. When you’re done drinking, close the cap to help protect the spout and straw from dirt and grime and slide the button to lock it in place. A comfortable, pivotable carry handle lets you easily carry the bottle with you while walking along the beach or checking out the festival grounds. Model: 2166132.', 26.99),
+    (104, 'Bubba Flo Refresh Crystle Ice Kids Water Bottle 16 oz.', 'Teach your kids good hydration habits with the bubba Flo Kids 16 oz. Water Bottle with Silicone Sleeve. It features a leak-proof lid and a handy button lock to prevent accidental openings, keeping the inside of your car safe from spills. With a high-flow chug lid, kids can quickly hydrate without missing their turn on the monkey bars. A built-in spout cover keeps out dirt and germs.', 11.99),
+    (105, 'Bubba 32 oz. Radiant Stainless Steel Rubberized Water Bottle, Licorice', 'Hanging with friends at a music festival or heading to the beach? Bring the bubba 32 oz. Radiant Stainless Steel Rubberized Water Bottle with Straw along for the fun. The leakproof lid is easy to open with just the push of a button so you can hydrate quickly without the mess. Plus, your favorite drinks stay cold for 12 hours thanks to the vacuum-insulated stainless steel. When you''re done drinking, close the cap to help protect the spout and straw from dirt and grime and slide the button to lock it in place. A comfortable, pivotal carry handle lets you easily carry the bottle with you while walking along the beach or checking out the festival grounds. Size: 32 oz. Model: 2166127.', 26.99),
+    (201, 'GoFit Double Thick Yoga Mat', 'The GoFit Yoga mat provides an excellent nonslip surface ideal for yoga practice and stretching routines. The top-quality GoFit yoga mat is twice as thick as a regular yoga mat. This mat has an extra-cushioned, airy surface, providing comfort and protection during specific yoga poses or Pilates mat work. Easily rolls up for storage and wipes clean with a damp towel. Includes a yoga position poster to get started. Model: GOFGF2XYOGA.', 39.99),
+    (202, 'GoFit Yoga Mat', '', 24.99),
+    (203, 'GoFit Pattern Yoga Mat with Yoga Pose Wall Chart', 'The inspirational GoFit 24 x 68 in. Designer Yoga Mat expresses personal style while inspiring workouts at home or the studio. Closed-cell foam with a non-slip surface provides comfort and protection for Yoga poses, Pilates exercises, HIIT Yoga Fusion and stretching routines. The Designer Yoga Mat easily rolls up for storage and wipes clean with a damp towel, making every session inspirational, effective and efficient. Model: GF-PYM', 21.49),
+    (204, 'GoFit Summit Yoga Mat', '', 69.99),
+    (205, 'GoFit Yoga Kit: Basic Blue Mat, Foam Block, Strap and Yoga Pose Wall Chart', 'Whether you are just getting started or need an extra Yoga kit to take anywhere, the GoFit Complete Yoga Kit has everything you need for a complete Yoga workout.', 25.50),
+    (206, 'GoFit Deluxe Pilates Foam Mat', 'Get the professional grade mat that''s just like the ones used in Pilates studios from GoFit. It is an absolute must for performing all the various forms, exercises and methods pertaining to Pilates in total comfort and style. It''s a full 0.5 in. thick with closed cell air pockets to provide a soft, yet durable design. It also has a ribbed surface for a better feel during use and to provide a nonslip performance surface. Cleans with a damp cloth and rolls for easy storage. Style: GF-PMAT.', 27.99);
     """
     cursor.execute(insertIntoProducts)
     connection.commit()
@@ -715,6 +715,19 @@ def insertUsers(connection, cursor):
     connection.commit()
     print("Sample user data created.")
 
+# Refresh database.
+def refreshDatabase(connection, cursor):
+    try:
+        # Assuming the connection is to the server, not the specific database
+        cursor.execute("DROP DATABASE IF EXISTS aafesorder")
+        connection.commit()  # Commit changes
+        cursor.execute("CREATE DATABASE aafesorder")
+        connection.commit()  # Commit changes
+        print("Database refreshed.")
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        connection.rollback()  # Rollback in case of error
+
 if __name__ == "__main__":
 
     # Replace parameters with DB information
@@ -727,6 +740,11 @@ if __name__ == "__main__":
     connection = connectToDatabase(host_name, user_name, user_password, db_name)
 
     # Initialize database cursor
+    cursor = connection.cursor()
+
+    # Refresh DB and reinitialize connection.
+    refreshDatabase(connection, cursor)
+    connection = connectToDatabase(host_name, user_name, user_password, db_name)
     cursor = connection.cursor()
 
     # Create all tables and alter statements
