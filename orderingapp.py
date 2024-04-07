@@ -13,15 +13,25 @@ class CartManager:
     def __init__(self):
         self.items = {}
         self.product_prices = {}
+        self.observers = []  # List to hold references to observer functions
+
+    def add_observer(self, observer_func):
+        """Registers a function to be called for updates."""
+        self.observers.append(observer_func)
+
+    def notify_observers(self):
+        """Notifies all registered observers of changes."""
+        for observer in self.observers:
+            observer()
 
     def add_item(self, product_id, quantity=1, price=None):
         if product_id in self.items:
             self.items[product_id] += quantity
         else:
             self.items[product_id] = quantity
-        
         if price is not None:
             self.product_prices[product_id] = price
+        self.notify_observers()  # Call to notify observers about the change
 
     def remove_item(self, product_id, quantity=1):
         if product_id in self.items:
@@ -30,30 +40,32 @@ class CartManager:
                 del self.items[product_id]
                 if product_id in self.product_prices:
                     del self.product_prices[product_id]
-
-    def get_cart_contents(self):
-        return self.items
-
-    def get_product_prices(self):
-        return self.product_prices
+        self.notify_observers()  # Call to notify observers about the change
 
     def clear_cart(self):
         self.items = {}
         self.product_prices = {}
+        self.notify_observers()  # Call to notify observers about the change
 
     def remove_item_completely(self, product_id):
         if product_id in self.items:
             del self.items[product_id]
             if product_id in self.product_prices:
                 del self.product_prices[product_id]
+        self.notify_observers()  # Call to notify observers about the change
 
     def calculate_total_cost(self):
         total_cost = 0
         for product_id, quantity in self.items.items():
             if product_id in self.product_prices:
                 total_cost += self.product_prices[product_id] * quantity
-        return total_cost
+        return round(total_cost, 2) #Two decimal places
 
+    def get_cart_contents(self):
+        return self.items
+
+    def get_product_prices(self):
+        return self.product_prices
 
 class BaseFrame(tk.Frame):
     def __init__(self, master, colors, logo, login_manager=None):
@@ -148,7 +160,6 @@ class LoginFrame(BaseFrame):
             # Invalid credentials, display an error message box
             messagebox.showerror("Login Attempt Failed", "Invalid username or password.")
 
-
 class DashboardFrame(BaseFrame):
     def create_widgets(self):
         center_frame = tk.Frame(self, bg=self.colors['bg'])
@@ -231,11 +242,14 @@ class ProductOrderFrame(BaseFrame):
         if product_id in self.items:
             del self.items[product_id]
 
-
-class WaterBottleFrame(BaseFrame):
-    def __init__(self, parent, colors, db_info, cart_manager):
-        super().__init__(parent, colors, db_info, cart_manager)
-        self.images = {}  # Initialize the images dictionary to keep references
+class WaterBottleFrame(tk.Frame):
+    def __init__(self, parent, colors, db_info, cart_manager, logo_image):
+        super().__init__(parent)
+        self.colors = colors
+        self.db_info = db_info
+        self.cart_manager = cart_manager
+        self.logo_image = logo_image
+        self.images = {}  # Initialize the dictionary to store image references
         self.create_widgets()
 
     def create_widgets(self):
@@ -252,11 +266,11 @@ class WaterBottleFrame(BaseFrame):
 
     def display_products(self):
         water_bottle_products = [
-            (101, 'Bubba 40oz Water Bottle', 'Leakproof lid, cold for 12 hours, vacuum-insulated.', 30.99, 'BubbaFlo.png'),
+            (101, 'Bubba 40oz Water Bottle', 'Leakproof lid, cold for 12 hours, vacuum-insulated.', 30.99, 'BubbaLicorice.png'),
             (102, 'Bubba Hero Mug', 'Hot up to 6 hours or cold up to 24, leak-proof.', 25.99, 'BubbaHero.png'),
             (103, 'Bubba Radiant Water Bottle 32 oz.', 'Leakproof, vacuum-insulated stainless steel, 32 oz.', 26.99, 'BubbaRadiant.png'),
-            (104, 'Bubba Flo Kids Water Bottle 16 oz.', 'Leak-proof lid, high-flow chug lid, 16 oz.', 11.99, 'BubbaRadiant.png'),  # Adjusted image file name for demonstration
-            (105, 'Bubba 32 oz. Water Bottle, Licorice', 'Leakproof, cold for 12 hours, vacuum-insulated, 32 oz.', 26.99, 'BubbaRadiant.png')  # Adjusted image file name for demonstration
+            (104, 'Bubba Flo Kids Water Bottle 16 oz.', 'Leak-proof lid, high-flow chug lid, 16 oz.', 11.99, 'BubbaFlo.png'),  # Adjusted image file name for demonstration
+            (105, 'Bubba 32 oz. Water Bottle, Licorice', 'Leakproof, cold for 12 hours, vacuum-insulated, 32 oz.', 26.99, 'BubbaLicorice.png')  # Adjusted image file name for demonstration
         ]
 
         for index, (product_id, name, description, price, image_filename) in enumerate(water_bottle_products, start=1):
@@ -264,120 +278,159 @@ class WaterBottleFrame(BaseFrame):
                 image_path = f"./Images/{image_filename}"  # Adjust the path as needed
                 image = PhotoImage(file=image_path)
                 # Increase subsample rate to reduce image size if needed
-                image = image.subsample(10, 10)  # Adjust this value as needed
+                image = image.subsample(6, 6)  # Adjust this value as needed
                 self.images[product_id] = image  # Store the PhotoImage object to prevent garbage collection
                 label_image = tk.Label(self, image=image)
-                label_image.grid(row=index, column=0, padx=5, pady=2)
+                if index <= 3:  # Display three products on the left side
+                    label_image.grid(row=index, column=0, padx=5, pady=2)
+                else:  # Display two products on the right side
+                    label_image.grid(row=index-3, column=3, padx=5, pady=2)  # Adjust the column index as needed
             except Exception as e:
                 print(f"Error loading image {image_path}: {e}")
                 continue
             
             product_info_label = tk.Label(self, text=f"{name}: {description} - ${price}", font=("Helvetica", 10), wraplength=300)
-            product_info_label.grid(row=index, column=1, sticky="w", padx=5, pady=2)
+            if index <= 3:
+                product_info_label.grid(row=index, column=1, sticky="w", padx=5, pady=2)
+            else:
+                product_info_label.grid(row=index-3, column=4, sticky="w", padx=5, pady=2)  # Adjust the column index as needed
             
             add_to_cart_button = tk.Button(self, text="Add to Cart", bg=self.colors['button_bg'], fg=self.colors['button_fg'],
-                                           command=lambda pid=product_id: self.add_to_cart(pid))
-            add_to_cart_button.grid(row=index, column=2, padx=5, pady=2)
+                                           command=lambda pid=product_id, p=price: self.add_to_cart(pid, p))
+            if index <= 3:
+                add_to_cart_button.grid(row=index, column=2, padx=5, pady=2)
+            else:
+                add_to_cart_button.grid(row=index-3, column=5, padx=5, pady=2)  # Adjust the column index as needed
 
-    def add_to_cart(self, product_id):
-        self.cart_manager.add_item(product_id, 1)  # Add one quantity of the product
+    def add_to_cart(self, product_id, price):
+        self.cart_manager.add_item(product_id, 1, price)  # Add one quantity of the product
         messagebox.showinfo("Success", f"Added product {product_id} to cart.")
+        print("Cart contents after adding items:", self.cart_manager.get_cart_contents())
 
+class YogaMatFrame(tk.Frame):
+    def __init__(self, parent, colors, db_info, cart_manager, logo_image):
+        super().__init__(parent)
+        self.colors = colors
+        self.db_info = db_info
+        self.cart_manager = cart_manager
+        self.logo_image = logo_image
+        self.images = {}  # Initialize the dictionary to store image references
+        self.create_widgets()
 
-class YogaMatFrame(BaseFrame):
     def create_widgets(self):
-        # Displaying the Yoga Mat Products
         self.display_products()
-
         # Back Button
         back_button = tk.Button(self, text="Back to Product Order", bg=self.colors['button_bg'], fg=self.colors['button_fg'],
                                 font=("Helvetica", 14), activebackground=self.colors['button_active_bg'],
                                 command=lambda: self.master.show_frame(ProductOrderFrame))
-        back_button.grid(row=1, column=0, pady=10, sticky="w")
-
+        back_button.grid(row=0, column=0, pady=10, sticky="w")
         # Exit Application Button
         exit_button = tk.Button(self, text="Exit Application", bg=self.colors['exit_button_bg'], fg="white",
                                 command=self.master.destroy, font=("Arial", 12))
         exit_button.place(relx=1.0, rely=0.0, anchor="ne", width=120, height=50)
 
     def display_products(self):
-        # Placeholder for yoga mat product details - this would normally come from your database
         yoga_mat_products = [
-            (201, 'GoFit Double Thick Yoga Mat', 'Excellent nonslip surface ideal for yoga practice.', 39.99),
-            (202, 'GoFit Yoga Mat', 'Provides comfort and protection for Yoga poses.', 24.99),
-            (203, 'GoFit Pattern Yoga Mat', 'Non-slip surface, includes yoga pose wall chart.', 21.49),
-            (204, 'GoFit Summit Yoga Mat', 'Professional grade mat, extra-cushioned surface.', 69.99),
-            (205, 'GoFit Yoga Kit', 'Everything needed for a complete Yoga workout.', 25.50),
+            (201, 'GoFit Double Thick Yoga Mat', 'Excellent nonslip surface ideal for yoga practice.', 39.99, 'GoFitDoubleThick.png'),
+            (202, 'GoFit Yoga Mat', 'Provides comfort and protection for Yoga poses.', 24.99, 'GoFitYogaMat.png'),
+            (203, 'GoFit Pattern Yoga Mat', 'Non-slip surface, includes yoga pose wall chart.', 21.49, 'GoFitPatternMat.png'),
+            (204, 'GoFit Summit Yoga Mat', 'Professional grade mat, extra-cushioned surface.', 69.99, 'GoFitSummitYogaMat.png'),
+            (205, 'GoFit Yoga Kit', 'Everything needed for a complete Yoga workout.', 25.50, 'GoFitYogaKit.png'),
         ]
 
-        for index, (product_id, name, description, price) in enumerate(yoga_mat_products, start=2):
-            tk.Label(self, text=f"{name}: {description} - ${price}", font=("Helvetica", 12), wraplength=400).grid(row=index, column=0, sticky="w", padx=10, pady=5)
+        for index, (product_id, name, description, price, image_filename) in enumerate(yoga_mat_products, start=1):
+            try:
+                image_path = f"./Images/{image_filename}"  # Adjust the path as needed
+                image = PhotoImage(file=image_path)
+                # Increase subsample rate to reduce image size if needed
+                image = image.subsample(6, 6)  # Adjust this value as needed
+                self.images[product_id] = image  # Store the PhotoImage object to prevent garbage collection
+                label_image = tk.Label(self, image=image)
+                if index <= 3:  # Display three products on the left side
+                    label_image.grid(row=index, column=0, padx=5, pady=2)
+                else:  # Display two products on the right side
+                    label_image.grid(row=index-3, column=3, padx=5, pady=2)  # Adjust the column index as needed
+            except Exception as e:
+                print(f"Error loading image {image_path}: {e}")
+                continue
             
-            # Add to Cart Button
+            product_info_label = tk.Label(self, text=f"{name}: {description} - ${price}", font=("Helvetica", 10), wraplength=300)
+            if index <= 3:
+                product_info_label.grid(row=index, column=1, sticky="w", padx=5, pady=2)
+            else:
+                product_info_label.grid(row=index-3, column=4, sticky="w", padx=5, pady=2)  # Adjust the column index as needed
+            
             add_to_cart_button = tk.Button(self, text="Add to Cart", bg=self.colors['button_bg'], fg=self.colors['button_fg'],
-                                           command=lambda pid=product_id: self.add_to_cart(pid))
-            add_to_cart_button.grid(row=index, column=1, padx=10, pady=5)
+                                           command=lambda pid=product_id, p=price: self.add_to_cart(pid, p))
+            if index <= 3:
+                add_to_cart_button.grid(row=index, column=2, padx=5, pady=2)
+            else:
+                add_to_cart_button.grid(row=index-3, column=5, padx=5, pady=2)  # Adjust the column index as needed
 
-    def add_to_cart(self, product_id):
-        self.master.cart_manager.add_item(product_id)
-        tk.messagebox.showinfo("Cart", f"Product ID {product_id} added to the cart.")
+    def add_to_cart(self, product_id, price):
+        self.cart_manager.add_item(product_id, 1, price)  # Add one quantity of the product
+        messagebox.showinfo("Success", f"Added product {product_id} to cart.")
+        print("Cart contents after adding items:", self.cart_manager.get_cart_contents())
 
 class CartFrame(tk.Frame):
-    def __init__(self, parent, colors, db_info, cart_manager):
+    def __init__(self, parent, colors, db_info, cart_manager, logo_image):
         super().__init__(parent)
-        self.db_info = db_info
-        self.connection = mysql.connector.connect(**db_info)
-        self.cursor = self.connection.cursor()
         self.colors = colors
-        self.cart_manager = cart_manager  # Store the cart_manager
+        self.db_info = db_info
+        self.cart_manager = cart_manager
+        self.logo_image = logo_image
+        self.cart_manager.add_observer(self.update_cart_display)  # Register as observer to the cart manager
         self.create_widgets()
+        self.grid_rowconfigure(0, weight=1)
+        self.grid_rowconfigure(2, weight=1)
+        self.grid_columnconfigure(0, weight=1)
+        self.grid_columnconfigure(2, weight=1)
+        
 
     def create_widgets(self):
-        # Layout cart items
         self.cart_items_frame = tk.Frame(self)
-        self.cart_items_frame.grid(row=0, column=0, columnspan=2, sticky="nsew")
+        self.cart_items_frame.grid(row=1, column=1, columnspan=2, sticky="nsew")
 
-        # Label for cart contents
         tk.Label(self.cart_items_frame, text="Your Cart:", font=("Helvetica", 16, "bold")).grid(row=0, column=0, columnspan=2, sticky="w")
 
-        # Add More to Order Button
-        add_more_button = tk.Button(self, text="Add More to Order", bg=self.colors['button_bg'], fg=self.colors['button_fg'], 
-                                    font=("Helvetica", 14), activebackground=self.colors['button_active_bg'], 
-                                    command=self.add_more_to_order)
-        add_more_button.grid(row=1, column=0, padx=20, pady=10, sticky="ew")
+        add_more_button = tk.Button(self, text="Add More to Order", bg=self.colors['button_bg'], fg=self.colors['button_fg'],
+                                    font=("Helvetica", 14), activebackground=self.colors['button_active_bg'],
+                                    command=self.add_more_to_order, width=20)  # Specify width here
+        add_more_button.grid(row=2, column=1, padx=20, pady=10, sticky="sew")
+        
+        submit_order_button = tk.Button(self, text="Submit Order", bg=self.colors['button_bg'], fg=self.colors['button_fg'],
+                                        font=("Helvetica", 14), activebackground=self.colors['button_active_bg'],
+                                        command=self.submit_order, width=20)  # Ensure the width is the same
+        submit_order_button.grid(row=3, column=1, padx=20, pady=10, sticky="sew")
 
-        # Submit Order Button
-        submit_order_button = tk.Button(self, text="Submit Order", bg=self.colors['button_bg'], fg=self.colors['button_fg'], 
-                                        font=("Helvetica", 14), activebackground=self.colors['button_active_bg'], 
-                                        command=self.submit_order)
-        submit_order_button.grid(row=1, column=1, padx=20, pady=10, sticky="ew")
-
-        # Exit Application Button
-        exit_button = tk.Button(self, text="Exit Application", bg=self.colors['exit_button_bg'], fg="white", 
+        exit_button = tk.Button(self, text="Exit Application", bg=self.colors['exit_button_bg'], fg="white",
                                 command=self.master.destroy, font=("Arial", 12))
         exit_button.place(relx=1.0, rely=0.0, anchor="ne", width=120, height=50)
 
-        # Update cart display
         self.update_cart_display()
 
     def update_cart_display(self):
-        # Clear existing cart display
         for widget in self.cart_items_frame.winfo_children():
             widget.destroy()
 
-        # Fetch updated cart contents
+        tk.Label(self.cart_items_frame, text="Your Cart:", font=("Helvetica", 16, "bold")).grid(row=0, column=0, columnspan=2, sticky="w")
+
         cart_contents = self.cart_manager.get_cart_contents()
         total_cost = self.cart_manager.calculate_total_cost()
 
-        # Display cart contents
         if cart_contents:
-            for index, (product_id, quantity) in enumerate(cart_contents.items(), start=1):
-                product_name = f"Product {product_id}"  # Placeholder: fetch actual product name from your database
-                tk.Label(self.cart_items_frame, text=f"{product_name} - Quantity: {quantity}", font=("Helvetica", 12)).grid(row=index, column=0, sticky="w")
-            # Display total cost
-            tk.Label(self.cart_items_frame, text=f"Total Cost: ${total_cost}", font=("Helvetica", 12, "bold")).grid(row=index+1, column=0, columnspan=2, sticky="w")
+            index = 1
+            for product_id, quantity in cart_contents.items():
+                product_details = self.fetch_product_details(product_id)
+                if product_details:
+                    product_name = product_details['ProductName']
+                    price = product_details['Price']
+                    tk.Label(self.cart_items_frame, text=f"{product_name} - Quantity: {quantity} - ${price * quantity}", font=("Helvetica", 12)).grid(row=index, column=0, sticky="w")
+                    index += 1
+
+            self.total_cost_label = tk.Label(self.cart_items_frame, text=f"Total Cost: ${total_cost}", font=("Helvetica", 12, "bold"))
+            self.total_cost_label.grid(row=index, column=0, columnspan=2, sticky="w")
         else:
-            # Display message if cart is empty
             tk.Label(self.cart_items_frame, text="Your cart is empty.", font=("Helvetica", 12)).grid(row=1, column=0, sticky="w")
 
     def add_more_to_order(self):
@@ -389,77 +442,110 @@ class CartFrame(tk.Frame):
             messagebox.showerror("User Not Logged In", "Please log in to submit an order.")
             return
 
-        # Fetch user's email from the database
         user_email = self.get_user_email(user_id)
 
-        # Update database with the order
         try:
             order_id = self.place_order_in_database(user_id)
+           # if user_email:
+            #    self.send_confirmation_email(user_email, order_id)
+            #else:
+            #    messagebox.showwarning("Warning", "No email found for user. Order submitted, but confirmation email not sent.")
+
+            self.cart_manager.clear_cart()
+            messagebox.showinfo("Order Submitted", "Thank you for your order. A confirmation email has been sent.")
         except Exception as e:
             messagebox.showerror("Error", f"Failed to insert order: {e}")
-            return
-
-        # Send confirmation email
-        if user_email:
-            try:
-                self.send_confirmation_email(user_email, order_id)
-            except Exception as e:
-                messagebox.showwarning("Warning", f"Failed to send confirmation email: {e}")
-        else:
-            messagebox.showwarning("Warning", "No email found for user. Order submitted, but confirmation email not sent.")
-    
-        # Clear the cart after order submission
-        self.cart_manager.clear_cart()
-
-        messagebox.showinfo("Order Submitted", "Thank you for your order. A confirmation email has been sent.")
-        self.update_cart_display()
-    
-        # Navigate back to the main dashboard
-        self.master.show_frame(DashboardFrame)
 
     def get_user_email(self, user_id):
-        query = "SELECT UserEmail FROM Users WHERE UserID = %s"
-        self.cursor.execute(query, (user_id,))
-        result = self.cursor.fetchone()
-        return result[0] if result else None
+        try:
+            connection = mysql.connector.connect(host=self.db_info['host'], user=self.db_info['user'], passwd=self.db_info['passwd'], database=self.db_info['database'])
+            cursor = connection.cursor()
+            cursor.execute("SELECT UserEmail FROM Users WHERE UserID = %s", (user_id,))
+            result = cursor.fetchone()
+            if connection.is_connected():
+                cursor.close()
+                connection.close()
+            return result[0] if result else None
+        except Exception as e:
+            print(f"Database connection error: {e}")
+            return None
 
     def place_order_in_database(self, user_id):
-        # Insert order into the database and fetch the inserted order ID
-        order_details = self.cart_manager.get_cart_contents()
-        total_cost = self.cart_manager.calculate_total_cost()
-        query = "INSERT INTO Orders (UserID, OrderDetails, TotalCost, OrderStatus) VALUES (%s, %s, %s, %s)"
-        self.cursor.execute(query, (user_id, str(order_details), total_cost, 'Pending'))
-        self.connection.commit()
-        return self.cursor.lastrowid
+        try:
+            connection = mysql.connector.connect(host=self.db_info['host'], 
+                                                user=self.db_info['user'], 
+                                                passwd=self.db_info['passwd'], 
+                                                database=self.db_info['database'])
+            cursor = connection.cursor()
+            # Fetch the highest current OrderID and increment it for the new order
+            cursor.execute("SELECT MAX(OrderID) FROM Orders")
+            max_id_result = cursor.fetchone()
+            next_id = 1 if max_id_result is None or max_id_result[0] is None else max_id_result[0] + 1
+            
+            order_details = str(self.cart_manager.get_cart_contents())
+            total_cost = self.cart_manager.calculate_total_cost()
+            # Use the next OrderID for the new order
+            cursor.execute("INSERT INTO Orders (OrderID, UserID, OrderDetails, TotalCost, OrderStatus) VALUES (%s, %s, %s, %s, 'Pending')", 
+                        (next_id, user_id, order_details, total_cost))
+            order_id = next_id  # Use next_id as the order_id
+            connection.commit()
+            if connection.is_connected():
+                cursor.close()
+                connection.close()
+            return order_id
+        except Exception as e:
+            print(f"Database insert error: {e}")
+            return None
 
-    def send_confirmation_email(self, recipient_email, order_id):
-        sender_email = "southblance@example.com"  # Change this to your company's email address
-        smtp_server = "your_company_smtp_server.com"  # Change this to your company's SMTP server address
 
-        message = MIMEMultipart("alternative")
-        message["Subject"] = "Order Confirmation"
-        message["From"] = sender_email
-        message["To"] = recipient_email
+    #def send_confirmation_email(self, recipient_email, order_id):
+        #sender_email = "southblance@example.com"  # Change this to your company's email address
+        #smtp_server = "your_company_smtp_server.com"  # Change this to your company's SMTP server address
 
-        text = f"Thank you for your order. Your order ID is {order_id}."
-        html = f"""\
-        <html>
-          <body>
-            <p>Thank you for your order. Your order ID is {order_id}.</p>
-          </body>
-        </html>
-        """
+        #message = MIMEMultipart("alternative")
+        #message["Subject"] = "Order Confirmation"
+        #message["From"] = sender_email
+        #message["To"] = recipient_email
+#
+        #text = f"Thank you for your order. Your order ID is {order_id}."
+        #html = f"""\
+        #<html>
+        #  <body>
+        #    <p>Thank you for your order. Your order ID is {order_id}.</p>
+        #  </body>
+        #</html>
+        #"""
 
-        part1 = MIMEText(text, "plain")
-        part2 = MIMEText(html, "html")
+        #part1 = MIMEText(text, "plain")
+        #part2 = MIMEText(html, "html")
 
-        message.attach(part1)
-        message.attach(part2)
+        #message.attach(part1)
+        #message.attach(part2)
 
         # Adjust the SMTP connection to use your company's SMTP server
-        with smtplib.SMTP(smtp_server) as server:
-            server.sendmail(sender_email, recipient_email, message.as_string())
+        #with smtplib.SMTP(smtp_server) as server:
+            #server.sendmail(sender_email, recipient_email, message.as_string())
 
+    def fetch_product_details(self, product_id):
+        product_details = None
+        try:
+            connection = mysql.connector.connect(
+                host=self.db_info['host'],
+                user=self.db_info['user'],
+                passwd=self.db_info['passwd'],
+                database=self.db_info['database']
+            )
+            cursor = connection.cursor(dictionary=True)
+            query = "SELECT ProductName, Price FROM Products WHERE ProductID = %s"
+            cursor.execute(query, (product_id,))
+            product_details = cursor.fetchone()
+        except mysql.connector.Error as error:
+            print(f"Error fetching product details: {error}")
+        finally:
+            if connection.is_connected():
+                cursor.close()
+                connection.close()
+        return product_details
 
 class UserSettingsFrame(BaseFrame):
     def create_widgets(self):
@@ -610,76 +696,53 @@ class UpdateUserInfoFrame(BaseFrame):
 class App(tk.Tk):
     def __init__(self):
         super().__init__()
-        
-        # Start the app in fullscreen mode
-        self.attributes('-fullscreen', True)
 
+        # Initialization of app attributes...
+        self.attributes('-fullscreen', True)
         self.db_info = {
             'host': "localhost",
             'user': "root",
             'passwd': "SoPAStudentDB!#!",
             'database': "AAFESOrder",
         }
-
-        # Cart functionality
         self.cart_manager = CartManager()
-
-        # Option to exit fullscreen with Escape
-        self.bind("<Escape>", self.end_fullscreen)
-
-        # Load the logo
-        self.logo_image = PhotoImage(file="logo.png")
-
-        # Define colors based on the logo and exit button
+        self.bind("<Escape>", lambda e: self.attributes('-fullscreen', False))
+        self.logo_image = PhotoImage(file="logo.png")  # Ensure correct path is used
         self.colors = {
             'bg': '#FFFFFF',
             'button_bg': '#005a34',
             'button_fg': '#FFFFFF',
             'button_active_bg': '#004225',
-            'exit_button_bg': '#007848',  # Green color for exit button
+            'exit_button_bg': '#007848',
         }
 
-        # Initializing frames
         self.frames = {}
-        for F in (LoginFrame, DashboardFrame, UserSettingsFrame, UpdateUserInfoFrame, WaterBottleFrame, YogaMatFrame, CartFrame):
-            if F == CartFrame:
-                frame = F(self, self.colors, self.db_info, self.cart_manager)  # Pass cart_manager
+        frame_classes = [LoginFrame, DashboardFrame, UserSettingsFrame, UpdateUserInfoFrame, WaterBottleFrame, YogaMatFrame, CartFrame, ProductOrderFrame]
+
+        for F in frame_classes:
+            frame = None
+            if F in [WaterBottleFrame, CartFrame, YogaMatFrame]:  # These frames need db_info, cart_manager, logo_image, and colors
+                frame = F(self, self.colors, self.db_info, self.cart_manager, self.logo_image)
+            elif F in [ProductOrderFrame]:  # Adjusting ProductOrderFrame initialization
+                frame = F(self, self.colors, self.logo_image, None)  # Assuming ProductOrderFrame follows BaseFrame's init signature
+            elif F in [LoginFrame, DashboardFrame, UserSettingsFrame, UpdateUserInfoFrame]:  # These frames need the logo_image and colors
+                frame = F(self, self.colors, self.logo_image)
             else:
-                frame = F(self, self.colors, self.logo_image, self.db_info)
+                frame = F(self)
+
             self.frames[F] = frame
             frame.grid(row=0, column=0, sticky="nsew")
 
-        # Instantiating ProductOrderFrame separately
-        product_order_frame = ProductOrderFrame(self, self.colors, self.logo_image)
-        self.frames[ProductOrderFrame] = product_order_frame
-        product_order_frame.grid(row=0, column=0, sticky="nsew")
-
         self.show_frame(LoginFrame)
-        
-        self.current_user_id = None 
-
-        # Define login_manager attribute
-        self.login_manager = None
-
-        self.show_frame(LoginFrame)
-        self.current_user_id = None 
 
     def show_frame(self, context):
         frame = self.frames[context]
         frame.tkraise()
-
-    def end_fullscreen(self, event=None):
-        self.attributes("-fullscreen", False)
         
-    def login(self):
-        # Call the authenticate_user method of LoginFrame directly
-        user_id = self.frames[LoginFrame].authenticate_user()
-        if user_id:
-            self.current_user_id = user_id
-            self.show_frame(DashboardFrame)
-
-
-
+    def show_frame(self, context):
+        print(f"Switching to frame: {context}")  # Debugging line
+        frame = self.frames[context]
+        frame.tkraise()
 
 
 
