@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import Canvas, Scrollbar, Frame, PhotoImage, messagebox, ttk
+from tkinter import Canvas, Scrollbar, Frame, PhotoImage, messagebox, simpledialog, ttk
 import uuid
 import smtplib
 from email.mime.text import MIMEText
@@ -8,6 +8,112 @@ import hashlib
 import mysql.connector
 from mysql.connector import Error
 
+class PaymentForm(simpledialog.Dialog):
+    def __init__(self, parent, title, total_cost):
+        self.total_cost = total_cost
+        super().__init__(parent, title)
+
+    def body(self, frame):
+        # Display total cost
+        tk.Label(frame, text=f"Total Cost: ${self.total_cost:.2f}", font=("Arial", 14)).grid(row=0, columnspan=2, pady=(10, 20), sticky="nsew")
+
+        # Payment method selection
+        tk.Label(frame, text="Select Payment Method:", font=("Arial", 12)).grid(row=1, columnspan=2, sticky="w")
+
+        self.payment_method_var = tk.StringVar(value="Card")
+        payment_methods = ["Card", "PayPal", "Apple Pay", "Google Pay"]
+        for idx, method in enumerate(payment_methods):
+            tk.Radiobutton(frame, text=method, variable=self.payment_method_var, value=method,
+                           font=("Arial", 10), command=self.update_payment_method).grid(row=2+idx, columnspan=2, sticky="w")
+
+        self.payment_details_frame = tk.Frame(frame)
+        self.payment_details_frame.grid(row=6, columnspan=2, sticky="ew")
+        self.update_payment_method()
+
+    def update_payment_method(self):
+        # Clear current widgets in payment_details_frame
+        for widget in self.payment_details_frame.winfo_children():
+            widget.destroy()
+
+        method = self.payment_method_var.get()
+        if method == "Card":
+            self.card_details()
+        elif method == "PayPal":
+            self.paypal_details()
+        # Extend for other methods
+
+    def card_details(self):
+        # Card Number
+        tk.Label(self.payment_details_frame, text="Card Number:", font=("Arial", 12)).grid(row=0, column=0, sticky="w")
+        self.card_number_entry = tk.Entry(self.payment_details_frame, font=("Arial", 12))
+        self.card_number_entry.grid(row=0, column=1, padx=5, pady=5)
+
+        # Expiry Date
+        tk.Label(self.payment_details_frame, text="Expiry Date (MM/YY):", font=("Arial", 12)).grid(row=1, column=0, sticky="w")
+        self.card_expiry_entry = tk.Entry(self.payment_details_frame, font=("Arial", 12))
+        self.card_expiry_entry.grid(row=1, column=1, padx=5, pady=5)
+
+        # CVV
+        tk.Label(self.payment_details_frame, text="CVV:", font=("Arial", 12)).grid(row=2, column=0, sticky="w")
+        self.card_cvv_entry = tk.Entry(self.payment_details_frame, font=("Arial", 12))
+        self.card_cvv_entry.grid(row=2, column=1, padx=5, pady=5)
+
+        # Cardholder Name
+        tk.Label(self.payment_details_frame, text="Cardholder Name:", font=("Arial", 12)).grid(row=3, column=0, sticky="w")
+        self.cardholder_name_entry = tk.Entry(self.payment_details_frame, font=("Arial", 12))
+        self.cardholder_name_entry.grid(row=3, column=1, padx=5, pady=5)
+
+    def paypal_details(self):
+        # PayPal Email
+        tk.Label(self.payment_details_frame, text="PayPal Email:", font=("Arial", 12)).grid(row=0, column=0, sticky="w")
+        self.paypal_email_entry = tk.Entry(self.payment_details_frame, font=("Arial", 12))
+        self.paypal_email_entry.grid(row=0, column=1, padx=5, pady=5)
+
+    def apply(self):
+        payment_method = self.payment_method_var.get()
+        details = ""
+        if payment_method == "Card":
+            details = f"Card Number: {self.card_number_entry.get()}, " \
+                    f"Expiry: {self.card_expiry_entry.get()}, " \
+                    f"CVV: {self.card_cvv_entry.get()}, " \
+                    f"Name: {self.cardholder_name_entry.get()}"
+            # Validate card details
+            if not self.validate_card_details():
+                messagebox.showerror("Invalid Card Details", "Please enter valid card details.")
+                return
+        elif payment_method == "PayPal":
+            details = f"PayPal Email: {self.paypal_email_entry.get()}"
+        
+        # Simulate payment always being accepted
+        payment_success = True
+        
+        if payment_success:
+            # Set a flag indicating successful payment
+            self.payment_success = True
+            messagebox.showinfo("Payment Processed", f"Your payment through {payment_method} has been processed.\nDetails: {details}")
+        else:
+            # Set a flag indicating payment failure
+            self.payment_success = False
+            messagebox.showerror("Payment Failed", "Payment failed. Please try again.")
+
+    def validate_card_details(self):
+        # Validate card details
+        card_number = self.card_number_entry.get()
+        card_expiry = self.card_expiry_entry.get()
+        card_cvv = self.card_cvv_entry.get()
+        cardholder_name = self.cardholder_name_entry.get()
+
+        # Basic validation
+        if len(card_number) != 16:
+            return False
+        if len(card_expiry) != 5:
+            return False
+        if len(card_cvv) != 3:
+            return False
+        if not cardholder_name:
+            return False
+
+        return True
 
 class CartManager:
     def __init__(self):
@@ -442,19 +548,28 @@ class CartFrame(tk.Frame):
             messagebox.showerror("User Not Logged In", "Please log in to submit an order.")
             return
 
-        user_email = self.get_user_email(user_id)
-
-        try:
-            order_id = self.place_order_in_database(user_id)
-           # if user_email:
-            #    self.send_confirmation_email(user_email, order_id)
-            #else:
-            #    messagebox.showwarning("Warning", "No email found for user. Order submitted, but confirmation email not sent.")
-
-            self.cart_manager.clear_cart()
-            messagebox.showinfo("Order Submitted", "Thank you for your order. A confirmation email has been sent.")
-        except Exception as e:
-            messagebox.showerror("Error", f"Failed to insert order: {e}")
+        total_cost = self.cart_manager.calculate_total_cost()
+        if total_cost > 0:
+            # Open the detailed payment form dialog
+            payment_dialog = PaymentForm(self, "Payment Information", total_cost)
+            # Check if payment was cancelled (payment_dialog.user_cancelled can be a flag set in your PaymentForm if the user cancels)
+            if hasattr(payment_dialog, 'payment_success') and payment_dialog.payment_success:
+                # Proceed with order submission if payment was successful
+                user_email = self.get_user_email(user_id)
+                try:
+                    order_id = self.place_order_in_database(user_id)
+                    # if user_email:
+                    #     self.send_confirmation_email(user_email, order_id)
+                    # else:
+                    #     messagebox.showwarning("Warning", "No email found for user. Order submitted, but confirmation email not sent.")
+                    self.cart_manager.clear_cart()
+                    messagebox.showinfo("Order Submitted", "Thank you for your order. A confirmation email has been sent.")
+                except Exception as e:
+                    messagebox.showerror("Error", f"Failed to insert order: {e}")
+            else:
+                messagebox.showinfo("Payment Cancelled", "Payment was cancelled. Order has not been submitted.")
+        else:
+            messagebox.showinfo("Cart Empty", "Your cart is empty.")  
 
     def get_user_email(self, user_id):
         try:
@@ -861,8 +976,8 @@ def runAlterStatements(connection, cursor):
     cursor.execute("ALTER TABLE WarehouseNotification ADD FOREIGN KEY (OrderID) REFERENCES Orders (OrderID);")
     cursor.execute("ALTER TABLE WarehouseNotification ADD FOREIGN KEY (SiteID) REFERENCES DistributionCenter (SiteID);")
     cursor.execute("ALTER TABLE PaymentNotification ADD FOREIGN KEY (OrderID) REFERENCES Orders (OrderID);")
-    cursor.execute("ALTER TABLE ProductColors ADD FOREIGN KEY (ColorListID) REFERENCES ColorList (ColorListID) ON DELETE NO ACTION ON UPDATE CASCADE;")
-    cursor.execute("ALTER TABLE ProductColors ADD FOREIGN KEY (ProductID) REFERENCES Products (ProductID) ON DELETE NO ACTION ON UPDATE CASCADE;")
+    cursor.execute("ALTER TABLE ProductColors ADD FOREIGN KEY (ProductID) REFERENCES Products (ProductID);")
+    cursor.execute("ALTER TABLE ProductColors ADD FOREIGN KEY (ColorListID) REFERENCES ColorList (ColorListID);")
     connection.commit()
     print("Alter statements successful.")
 
@@ -1060,7 +1175,6 @@ def insertColorList(connection, cursor):
         (8, 'Crystyle Ice')
     ON DUPLICATE KEY UPDATE 
         ColorName = VALUES(ColorName);
-
     """
     cursor.execute(insertIntoColorList)
     connection.commit()
@@ -1068,8 +1182,6 @@ def insertColorList(connection, cursor):
 
 def insertProductColors(connection, cursor):
     insertIntoProductColors = """
-    
-
     INSERT INTO ProductColors (ProductColorID, ColorListID, ProductID)
     VALUES 
         (1, 1, 101),
@@ -1087,11 +1199,13 @@ def insertProductColors(connection, cursor):
     ON DUPLICATE KEY UPDATE 
         ColorListID = VALUES(ColorListID),
         ProductID = VALUES(ProductID);
-
     """
     cursor.execute(insertIntoProductColors)
     connection.commit()
     print("Product colors linked.")
+
+
+
 
 
 def insertDistributionCenter(connection, cursor):
@@ -1113,20 +1227,6 @@ def insertUsers(connection, cursor):
     connection.commit()
     print("Sample user data created.")
 
-# Refresh database.
-def refreshDatabase(connection, cursor):
-    try:
-        # Assuming the connection is to the server, not the specific database
-        cursor.execute("DROP DATABASE IF EXISTS aafesorder")
-        connection.commit()  # Commit changes
-        cursor.execute("CREATE DATABASE aafesorder")
-        connection.commit()  # Commit changes
-        print("Database refreshed.")
-    except Exception as e:
-        print(f"An error occurred: {e}")
-        connection.rollback()  # Rollback in case of error
-
-
 if __name__ == "__main__":
 
     # Replace parameters with DB information
@@ -1139,11 +1239,6 @@ if __name__ == "__main__":
     connection = connectToDatabase(host_name, user_name, user_password, db_name)
 
     # Initialize database cursor
-    cursor = connection.cursor()
-
-    # Refresh DB and reinitialize connection.
-    refreshDatabase(connection, cursor)
-    connection = connectToDatabase(host_name, user_name, user_password, db_name)
     cursor = connection.cursor()
 
     # Create all tables and alter statements
@@ -1183,7 +1278,6 @@ if __name__ == "__main__":
 
     # Inserting products into DB and link colors
     insertOrUpdateProducts(connection, cursor)
-
     insertColorList(connection, cursor)
     insertProductColors(connection, cursor)
 
