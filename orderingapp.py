@@ -861,8 +861,8 @@ def runAlterStatements(connection, cursor):
     cursor.execute("ALTER TABLE WarehouseNotification ADD FOREIGN KEY (OrderID) REFERENCES Orders (OrderID);")
     cursor.execute("ALTER TABLE WarehouseNotification ADD FOREIGN KEY (SiteID) REFERENCES DistributionCenter (SiteID);")
     cursor.execute("ALTER TABLE PaymentNotification ADD FOREIGN KEY (OrderID) REFERENCES Orders (OrderID);")
-    cursor.execute("ALTER TABLE ProductColors ADD FOREIGN KEY (ProductID) REFERENCES Products (ProductID);")
-    cursor.execute("ALTER TABLE ProductColors ADD FOREIGN KEY (ColorListID) REFERENCES ColorList (ColorListID);")
+    cursor.execute("ALTER TABLE ProductColors ADD FOREIGN KEY (ColorListID) REFERENCES ColorList (ColorListID) ON DELETE NO ACTION ON UPDATE CASCADE;")
+    cursor.execute("ALTER TABLE ProductColors ADD FOREIGN KEY (ProductID) REFERENCES Products (ProductID) ON DELETE NO ACTION ON UPDATE CASCADE;")
     connection.commit()
     print("Alter statements successful.")
 
@@ -1060,6 +1060,7 @@ def insertColorList(connection, cursor):
         (8, 'Crystyle Ice')
     ON DUPLICATE KEY UPDATE 
         ColorName = VALUES(ColorName);
+
     """
     cursor.execute(insertIntoColorList)
     connection.commit()
@@ -1067,6 +1068,8 @@ def insertColorList(connection, cursor):
 
 def insertProductColors(connection, cursor):
     insertIntoProductColors = """
+    
+
     INSERT INTO ProductColors (ProductColorID, ColorListID, ProductID)
     VALUES 
         (1, 1, 101),
@@ -1084,13 +1087,11 @@ def insertProductColors(connection, cursor):
     ON DUPLICATE KEY UPDATE 
         ColorListID = VALUES(ColorListID),
         ProductID = VALUES(ProductID);
+
     """
     cursor.execute(insertIntoProductColors)
     connection.commit()
     print("Product colors linked.")
-
-
-
 
 
 def insertDistributionCenter(connection, cursor):
@@ -1112,6 +1113,20 @@ def insertUsers(connection, cursor):
     connection.commit()
     print("Sample user data created.")
 
+# Refresh database.
+def refreshDatabase(connection, cursor):
+    try:
+        # Assuming the connection is to the server, not the specific database
+        cursor.execute("DROP DATABASE IF EXISTS aafesorder")
+        connection.commit()  # Commit changes
+        cursor.execute("CREATE DATABASE aafesorder")
+        connection.commit()  # Commit changes
+        print("Database refreshed.")
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        connection.rollback()  # Rollback in case of error
+
+
 if __name__ == "__main__":
 
     # Replace parameters with DB information
@@ -1124,6 +1139,11 @@ if __name__ == "__main__":
     connection = connectToDatabase(host_name, user_name, user_password, db_name)
 
     # Initialize database cursor
+    cursor = connection.cursor()
+
+    # Refresh DB and reinitialize connection.
+    refreshDatabase(connection, cursor)
+    connection = connectToDatabase(host_name, user_name, user_password, db_name)
     cursor = connection.cursor()
 
     # Create all tables and alter statements
@@ -1163,6 +1183,7 @@ if __name__ == "__main__":
 
     # Inserting products into DB and link colors
     insertOrUpdateProducts(connection, cursor)
+
     insertColorList(connection, cursor)
     insertProductColors(connection, cursor)
 
