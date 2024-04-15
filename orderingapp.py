@@ -7,6 +7,7 @@ from email.mime.multipart import MIMEMultipart
 import hashlib
 import mysql.connector
 from mysql.connector import Error
+import csv
 
 class PaymentForm(simpledialog.Dialog):
     def __init__(self, parent, title, total_cost):
@@ -813,7 +814,7 @@ class App(tk.Tk):
         super().__init__()
 
         # Initialization of app attributes...
-        self.attributes('-fullscreen', True)
+        self.attributes('-fullscreen', False)
         self.db_info = {
             'host': "localhost",
             'user': "root",
@@ -893,7 +894,7 @@ def createUsersTable(connection, cursor):
 
 def createDistributionCenterTable(connection, cursor):
     cursor.execute(
-        "CREATE TABLE IF NOT EXISTS  DistributionCenter (SiteID int NOT NULL, DODAddressCode varchar(10), FacilityNo int NOT NULL, FacilityNoLong int, SiteName varchar(255), SitePhone varchar(100), ShippingAddress varchar(255), ShippingAddress2 varchar(255), ShippingAddress3 varchar(255), ShippingAddress4 varchar(255), ShippingCity varchar(255), ShippingState varchar(100), ShippingZip varchar(100), PRIMARY KEY (SiteID))")
+        "CREATE TABLE IF NOT EXISTS  DistributionCenter (SiteID int NOT NULL AUTO_INCREMENT, DODAddressCode varchar(10), FacilityNo int NOT NULL, FacilityNoLong int, SiteName varchar(255), SitePhone varchar(100), ShippingAddress varchar(255), ShippingAddress2 varchar(255), ShippingAddress3 varchar(255), ShippingAddress4 varchar(255), ShippingCity varchar(255), ShippingState varchar(100), ShippingZip varchar(100), PRIMARY KEY (SiteID))")
     connection.commit()
     print("DistributionCenter table created.")
 
@@ -905,7 +906,7 @@ def createOrdersTable(connection, cursor):
 
 def createAuthenticationTable(connection, cursor):
     cursor.execute(
-        "CREATE TABLE IF NOT EXISTS  Authentication (AuthenticationID int NOT NULL, UserID int, HashedPassword varchar(100), LastPasswordChangeDate date, PasswordChangeRequired boolean DEFAULT FALSE, PRIMARY KEY (AuthenticationID))")
+        "CREATE TABLE IF NOT EXISTS  Authentication (AuthenticationID int NOT NULL AUTO_INCREMENT, UserID int, HashedPassword varchar(100), LastPasswordChangeDate date, PasswordChangeRequired boolean DEFAULT FALSE, PRIMARY KEY (AuthenticationID))")
     connection.commit()
     print("Authentication table created.")
 
@@ -929,7 +930,7 @@ def createProductsTable(connection, cursor):
 
 def createInventoryTable(connection, cursor):
     cursor.execute(
-        "CREATE TABLE IF NOT EXISTS  Inventory (InventoryID int NOT NULL, ProductID int, CurrentStockLevel int NOT NULL CHECK (CurrentStockLevel >= 0), PRIMARY KEY (InventoryID))")
+        "CREATE TABLE IF NOT EXISTS  Inventory (InventoryID int NOT NULL AUTO_INCREMENT, ProductID int, CurrentStockLevel int NOT NULL CHECK (CurrentStockLevel >= 0), PRIMARY KEY (InventoryID))")
     connection.commit()
     print("Inventory table created.")
 
@@ -1116,15 +1117,6 @@ def createViewUserActivityLogs(connection,cursor):
     connection.commit()
     print("userActivityLogs view created.")
 
-# Read all from user table
-def readAllUsers(cursor):
-    sql_query = ("SELECT * FROM Users")
-    cursor.execute(sql_query)
-    print("This is a test to pull all data from users table.")
-    print(cursor.fetchall())
-    print("Test successful. Congrats, this works.")
-
-
 def insertOrUpdateProducts(connection, cursor):
     # Define product details as a list of tuples
     product_details = [
@@ -1205,27 +1197,129 @@ def insertProductColors(connection, cursor):
     print("Product colors linked.")
 
 
+# This will insert all users into the database. This will use all employees listed on the South Balance website. All other data is dummy information.
+# UserRoleID is omitted.
+def insertUsers(connection, cursor):
+    insertIntoUsers = """
+        REPLACE INTO Users (UserID, FirstName, LastName, UserEmail, PreferredPaymentMethod, isDeleted) 
+        VALUES (%s, %s, %s, %s, %s, %s);
+    """
 
+    try:
+        with open('./DataImport/UserList.csv', newline='') as csvfile:
+            reader = csv.reader(csvfile)
+            next(reader)  # Skip the header row if your CSV has headers
+
+            for row in reader:
+                data_tuple = (row[0], row[1], row[2], row[3], row[4], row[5])
+                cursor.execute(insertIntoUsers, data_tuple)
+
+        connection.commit()
+        print("User Data inserted successfully.")
+
+    except Exception as e:
+        print("An error occurred:", e)
+        connection.rollback()
 
 
 def insertDistributionCenter(connection, cursor):
-    insertIntoDistributionCenter = """
-    INSERT IGNORE INTO DistributionCenter (SiteID, DODAddressCode, FacilityNo, FacilityNoLong, SiteName, SitePhone, ShippingAddress,ShippingAddress2, ShippingAddress3, ShippingAddress4, ShippingCity, ShippingState, ShippingZip)
-    VALUES (101, 'K885', '1010204', '3468142200', 'LRK LAKESIDE EXP/GAS', '501-988-4888', 'LAKESIDE EXPRESS', 'BLDG 1996 CHIEF WILLIAMS', '', '', 'LITTLE ROCK', 'AR', '720990000');
-    """
-    cursor.execute(insertIntoDistributionCenter)
-    connection.commit()
-    print("Sample distribution center data created.")
+    insert_query = """
+            REPLACE INTO DistributionCenter (DODAddressCode, FacilityNo, SiteName, SitePhone, ShippingAddress, ShippingAddress2, ShippingAddress3, ShippingAddress4, ShippingCity, ShippingState, ShippingZip) 
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
+            """
 
-# This will insert a user into the database. For some reason, this isn't sticking, and I'm wondering if that has something to do with the front end dropping that off. Unsure, this will need to be revisited.
-def insertUsers(connection, cursor):
-    insertIntoUsers = """
-    INSERT IGNORE INTO Users (UserID, FirstName, LastName, UserRoleID, UserEmail, PreferredPaymentMethod, isDeleted)
-    VALUES (10210, 'Johnny', 'Donuts', 1, 'jd@email.com', 'Paypal', FALSE);
+    try:
+        with open('./DataImport/AAFES_DISTRIBUTION_CENTERS.csv', newline='') as csvfile:
+            reader = csv.reader(csvfile)
+            next(reader)  # Skip the header row if your CSV has headers
+
+            for row in reader:
+                # FacilityNoLong will not work for some reason. Omitting for now.
+                data_tuple = (row[0], row[1], row[3], row[4], row[5], row[6], row[7], row[8], row[9], row[10], row[11])
+                cursor.execute(insert_query, data_tuple)
+
+        connection.commit()
+        print("Distribution Center Data inserted successfully.")
+
+    except Exception as e:
+        print("An error occurred:", e)
+        connection.rollback()
+
+def createDatabase(connection, cursor):
+    createNewDatabase = """
+        DROP TABLE IF EXISTS aafesorder;
+        CREATE DATABASE aafesorder;
     """
-    cursor.execute(insertIntoUsers)
+    cursor.execute(createNewDatabase)
     connection.commit()
-    print("Sample user data created.")
+    print("Database created.")
+
+def updateInventoryQuantity(connection, cursor):
+    insert_query = """
+                REPLACE INTO Inventory (InventoryID, ProductID, CurrentStockLevel) 
+                VALUES (%s, %s, %s);
+                """
+
+    try:
+        with open('./DataImport/INVENTORYLEVELS.csv', newline='') as csvfile:
+            reader = csv.reader(csvfile)
+            next(reader)  # Skip the header row if your CSV has headers
+
+            for row in reader:
+                data_tuple = (row[0], row[1], row[2])
+                cursor.execute(insert_query, data_tuple)
+
+        connection.commit()
+        print("Inventory levels updated successfully.")
+
+    except Exception as e:
+        print("An error occurred:", e)
+        connection.rollback()
+
+
+def updateAuthenticationList(connection, cursor):
+    insert_query = """
+                REPLACE INTO Authentication (UserID, HashedPassword) 
+                VALUES (%s, %s);
+                """
+
+    try:
+        with open('./DataImport/AUTHENTICATIONLIST.csv', newline='') as csvfile:
+            reader = csv.reader(csvfile)
+            next(reader)  # Skip the header row if your CSV has headers
+
+            for row in reader:
+                data_tuple = (row[0], row[1])
+                cursor.execute(insert_query, data_tuple)
+
+        connection.commit()
+        print("Authentication updated successfully.")
+
+    except Exception as e:
+        print("An error occurred:", e)
+        connection.rollback()
+
+def insertUserRole(connection, cursor):
+    insert_query = """
+                REPLACE INTO UserRole (UserRoleID, RoleDescription) 
+                VALUES (%s, %s);
+                """
+
+    try:
+        with open('./DataImport/UserRole.csv', newline='') as csvfile:
+            reader = csv.reader(csvfile)
+            next(reader)  # Skip the header row if your CSV has headers
+
+            for row in reader:
+                data_tuple = (row[0], row[1])
+                cursor.execute(insert_query, data_tuple)
+
+        connection.commit()
+        print("User Role List updated successfully.")
+
+    except Exception as e:
+        print("An error occurred:", e)
+        connection.rollback()
 
 if __name__ == "__main__":
 
@@ -1240,6 +1334,9 @@ if __name__ == "__main__":
 
     # Initialize database cursor
     cursor = connection.cursor()
+
+    # Create database
+    # createDatabase(connection, cursor)
 
     # Create all tables and alter statements
     createUserRoleTable(connection, cursor)
@@ -1273,7 +1370,7 @@ if __name__ == "__main__":
     createViewWarehouseNotificationsView(connection, cursor)
     createViewUserActivityLogs(connection, cursor)
 
-    # Insert sample user into DB
+    # Insert users into DB
     insertUsers(connection, cursor)
 
     # Inserting products into DB and link colors
@@ -1281,13 +1378,19 @@ if __name__ == "__main__":
     insertColorList(connection, cursor)
     insertProductColors(connection, cursor)
 
-    # Insert sample warehouse DB
+    # Insert warehouse DB list from CSV
     insertDistributionCenter(connection, cursor)
 
+    # Update Inventory levels
+    updateInventoryQuantity(connection, cursor)
+
+    # Update Authentication table
+    updateAuthenticationList(connection, cursor)
+
+    # Update User Role List
+    insertUserRole(connection, cursor)
 
 
-    # Read user table
-    readAllUsers(cursor)
 
     app = App()
     app.mainloop()
