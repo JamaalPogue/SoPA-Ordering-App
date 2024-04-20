@@ -8,6 +8,7 @@ import hashlib
 import mysql.connector
 from mysql.connector import Error
 import csv
+import datetime
 
 class PaymentForm(simpledialog.Dialog):
     def __init__(self, parent, title, total_cost):
@@ -133,14 +134,14 @@ class CartManager:
 
     def add_item(self, product_id, quantity=1, price=None):
         itemQty = checkItemQuantity(connection, cursor, product_id)  # This will check the quantity of the item in inventory
-        if itemQty == 0:
+        if itemQty == 0: # If there is none in inventory, skip the process.
             print("Item is out of stock.")
-            messagebox.showerror("Out Of Stock", "Item is out of stock. You cannot add anymore of this item.")
+            messagebox.showerror("Out Of Stock", "Item is out of stock at the warehouse. Please choose a different product.")
         else:
             if product_id in self.items:
                 if self.items[product_id] >= itemQty:
-                    print("Item is out of stock.")
-                    messagebox.showerror("Out Of Stock", "Item is out of stock. You cannot add anymore of this item.")
+                    print("Maximum Order Reached.")
+                    messagebox.showerror("Maximum Order Reached", "You have added the maximum available quantity of this item.")
                 else:
                     self.items[product_id] += quantity
             else:
@@ -573,6 +574,7 @@ class CartFrame(tk.Frame):
                     #     self.send_confirmation_email(user_email, order_id)
                     # else:
                     #     messagebox.showwarning("Warning", "No email found for user. Order submitted, but confirmation email not sent.")
+                    # updateInventoryAfterPurchase(self, user_id)
                     self.cart_manager.clear_cart()
                     messagebox.showinfo("Order Submitted", "Thank you for your order. A confirmation email has been sent.")
                 except Exception as e:
@@ -613,6 +615,10 @@ class CartFrame(tk.Frame):
             # Use the next OrderID for the new order
             cursor.execute("INSERT INTO Orders (OrderID, UserID, OrderDetails, TotalCost, OrderStatus) VALUES (%s, %s, %s, %s, 'Pending')", 
                         (next_id, user_id, order_details, total_cost))
+            # Logging order in AuditLog table
+            cursor.execute(
+                "INSERT INTO AuditLog (UserID, ActivityType, AffectedRecordID, ItemDescription) VALUES (%s, %s, %s, %s)",
+                (user_id, 'Order Placed', next_id, order_details))
             order_id = next_id  # Use next_id as the order_id
             connection.commit()
             if connection.is_connected():
@@ -622,6 +628,8 @@ class CartFrame(tk.Frame):
         except Exception as e:
             print(f"Database insert error: {e}")
             return None
+
+
 
 
     #def send_confirmation_email(self, recipient_email, order_id):
@@ -946,7 +954,7 @@ def createInventoryTable(connection, cursor):
 
 def createAuditLogTable(connection, cursor):
     cursor.execute(
-        "CREATE TABLE IF NOT EXISTS  AuditLog (LogID int NOT NULL, UserID int, ActivityType varchar(255), ActivityTimestamp date, AffectedRecordID int, ItemDescription varchar(255), PRIMARY KEY (LogID))")
+        "CREATE TABLE IF NOT EXISTS  AuditLog (LogID int NOT NULL AUTO_INCREMENT, UserID int, ActivityType varchar(255), ActivityTimestamp datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, AffectedRecordID int, ItemDescription blob, PRIMARY KEY (LogID))")
     connection.commit()
     print("AuditLog table created.")
 
@@ -1345,10 +1353,55 @@ def checkItemQuantity(connection, cursor, product_id):
         print("An error occurred:", str(e))
         return None
 
+def reduceInventoryQuantity(connection, cursor, product_id, itemQty):
+    try:
+        update_query = """
+        UPDATE Inventory 
+        SET CurrentStockLevel = CurrentStockLevel - %s
+        WHERE ProductID = %s;
+        """
+        cursor.execute(update_query, (itemQty, product_id))
+        connection.commit()
+
+        # Fetching the updated quantity to confirm and print
+        cursor.execute("SELECT CurrentStockLevel FROM Inventory WHERE ProductID = %s;", (product_id,))
+        updated_qty = cursor.fetchone()[0]  # Assuming fetchone() returns a tuple
+        print(f"The updated quantity of item with ProductID {product_id} is: {updated_qty}")
+
+    except Exception as e:
+        print("An error occurred:", str(e))
+        return None
 
 
+def updateInventoryAfterPurchase(self, user_id):
+    # I do not know why this is not working. I will come back to this after I take a nap and cry a lot.
 
+    try:
+        for row in self.cart_manager.get_cart_contents():
+            self.items = {}
+            productid = self.items[product_id]
+            print("Quantity of item with ProductID", productid, "is:")
+            print("Cart contents after adding items:", self.cart_manager.get_cart_contents())
+        #     reduceInventoryQuantity(connection, cursor, product_id, itemQty)
+        # connection.commit()  # Commit the changes after all updates are done
+    except Exception as e:
+        connection.rollback()  # Rollback if any exception occurs
+        print(f"Inventory correction error: {e}")
+        return None
+    finally:
+        cursor.close()  # Ensure the cursor is closed after operation
 
+def activityLogging(connection, cursor):
+    try:
+        update_query = """
+        INSERT INTO auditLog (UserID, ActivityType, ActivityTimestamp, AffectedRecordID, ItemDescription) 
+        VALUES (%s, %s, %s, %s, %s)
+        """
+        cursor.execute(update_query)
+        connection.commit()
+    except Exception as e:
+        print("An error occurred:", str(e))
+        return None
 
 
 if __name__ == "__main__":
@@ -1415,16 +1468,10 @@ if __name__ == "__main__":
     updateInventoryQuantity(connection, cursor)
 
     # Update Authentication table
-    updateAuthenticationList(connection, cursor)
+    # updateAuthenticationList(connection, cursor) #Temp disable for testing purposes
 
     # Update User Role List
     insertUserRole(connection, cursor)
-
-    # Test quantity checker for item 202
-    # product_id = 104  # Example ProductID
-    # checkItemQuantity(connection, cursor, product_id)
-
-
 
     app = App()
     app.mainloop()
