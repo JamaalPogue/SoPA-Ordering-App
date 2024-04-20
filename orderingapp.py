@@ -132,13 +132,23 @@ class CartManager:
             observer()
 
     def add_item(self, product_id, quantity=1, price=None):
-        if product_id in self.items:
-            self.items[product_id] += quantity
+        itemQty = checkItemQuantity(connection, cursor, product_id)  # This will check the quantity of the item in inventory
+        if itemQty == 0:
+            print("Item is out of stock.")
+            messagebox.showerror("Out Of Stock", "Item is out of stock. You cannot add anymore of this item.")
         else:
-            self.items[product_id] = quantity
+            if product_id in self.items:
+                if self.items[product_id] >= itemQty:
+                    print("Item is out of stock.")
+                    messagebox.showerror("Out Of Stock", "Item is out of stock. You cannot add anymore of this item.")
+                else:
+                    self.items[product_id] += quantity
+            else:
+                self.items[product_id] = quantity
         if price is not None:
             self.product_prices[product_id] = price
         self.notify_observers()  # Call to notify observers about the change
+
 
     def remove_item(self, product_id, quantity=1):
         if product_id in self.items:
@@ -1321,6 +1331,26 @@ def insertUserRole(connection, cursor):
         print("An error occurred:", e)
         connection.rollback()
 
+
+def checkItemQuantity(connection, cursor, product_id):
+    try:
+        check_query = """
+        SELECT CurrentStockLevel FROM Inventory WHERE ProductID = %s;
+        """
+        cursor.execute(check_query, (product_id,))
+        itemQty = cursor.fetchone()[0]
+        print("Quantity of item with ProductID", product_id, "is:", itemQty)
+        return itemQty
+    except Exception as e:
+        print("An error occurred:", str(e))
+        return None
+
+
+
+
+
+
+
 if __name__ == "__main__":
 
     # Replace parameters with DB information
@@ -1389,6 +1419,10 @@ if __name__ == "__main__":
 
     # Update User Role List
     insertUserRole(connection, cursor)
+
+    # Test quantity checker for item 202
+    # product_id = 104  # Example ProductID
+    # checkItemQuantity(connection, cursor, product_id)
 
 
 

@@ -6,7 +6,7 @@ InventoryID,ProductID,CurrentStockLevel
 5,105,10
 6,201,5
 7,202,1
-8,203,20
+8,203,0
 9,204,44
 10,205,69
 11,206,101
