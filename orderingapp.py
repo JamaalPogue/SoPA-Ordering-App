@@ -1218,9 +1218,12 @@ def insertProductColors(connection, cursor):
 # This will insert all users into the database. This will use all employees listed on the South Balance website. All other data is dummy information.
 # UserRoleID is omitted.
 def insertUsers(connection, cursor):
+    checkIfExists = """
+            SELECT COUNT(*) FROM Users WHERE FirstName = %s AND LastName = %s;
+        """
     insertIntoUsers = """
-        REPLACE INTO Users (UserID, FirstName, LastName, UserEmail, PreferredPaymentMethod, isDeleted) 
-        VALUES (%s, %s, %s, %s, %s, %s);
+        REPLACE INTO Users (FirstName, LastName, UserEmail, PreferredPaymentMethod, isDeleted) 
+        VALUES (%s, %s, %s, %s, %s);
     """
 
     try:
@@ -1229,8 +1232,12 @@ def insertUsers(connection, cursor):
             next(reader)  # Skip the header row if your CSV has headers
 
             for row in reader:
-                data_tuple = (row[0], row[1], row[2], row[3], row[4], row[5])
-                cursor.execute(insertIntoUsers, data_tuple)
+                # Check if the user already exists
+                cursor.execute(checkIfExists, (row[1], row[2]))
+                exists = cursor.fetchone()[0]
+                if exists == 0:  # If the user does not exist, then insert
+                    data_tuple = (row[1], row[2], row[3], row[4], row[5])
+                    cursor.execute(insertIntoUsers, data_tuple)
 
         connection.commit()
         print("User Data inserted successfully.")
