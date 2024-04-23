@@ -8,6 +8,8 @@ from email.mime.multipart import MIMEMultipart
 import hashlib
 import mysql.connector
 from mysql.connector import Error
+import csv
+import datetime
 
 class PaymentForm(simpledialog.Dialog):
     def __init__(self, parent, title, total_cost):
@@ -131,11 +133,31 @@ class CartManager:
         for observer in self.observers:
             observer()
 
+
     def add_item(self, product_id, product_name, quantity, price, color, customization, customized=False):
-        if product_id not in self.items:
-            self.items[product_id] = {'product_name': product_name, 'quantity': 0, 'price': price, 'color': color, 'customization': customization, 'customized': customized}
-        self.items[product_id]['quantity'] += quantity
+        itemQty = checkItemQuantity(connection, cursor, product_id)  # This will check the quantity of the item in inventory
+        if itemQty == 0: # If there is none in inventory, skip the process.
+            print("Item is out of stock.")
+            messagebox.showerror("Out Of Stock", "Item is out of stock at the warehouse. Please choose a different product.")
+        else:
+            if product_id not in self.items:
+              self.items[product_id] = {'product_name': product_name, 'quantity': 0, 'price': price, 'color': color, 'customization': customization, 'customized': customized}
+            self.items[product_id]['quantity'] += quantity
+            if product_id in self.items:
+                if self.items[product_id] >= itemQty:
+                    print("Maximum Order Reached.")
+                    messagebox.showerror("Maximum Order Reached", "You have added the maximum available quantity of this item.")
+                else:
+                    self.items[product_id] += quantity
+            else:
+                self.items[product_id] = quantity
+        if price is not None:
+            self.product_prices[product_id] = price
+
+
+        
         self.notify_observers()
+
 
 
     def remove_item(self, product_id, quantity=1):
@@ -578,7 +600,14 @@ class CartFrame(tk.Frame):
             payment_dialog = PaymentForm(self, "Payment Information", total_cost)
             if hasattr(payment_dialog, 'payment_success') and payment_dialog.payment_success:
                 try:
+
+                    # if user_email:
+                    #     self.send_confirmation_email(user_email, order_id)
+                    # else:
+                    #     messagebox.showwarning("Warning", "No email found for user. Order submitted, but confirmation email not sent.")
+                    # updateInventoryAfterPurchase(self, user_id)
                     order_id = self.place_order_in_database(user_id, total_cost)
+
                     self.cart_manager.clear_cart()
                     messagebox.showinfo("Order Submitted", "Thank you for your order. Your order has been successfully processed.")
                 except Exception as e:
@@ -596,6 +625,12 @@ class CartFrame(tk.Frame):
             max_id_result = cursor.fetchone()
             next_id = 1 if max_id_result is None or max_id_result[0] is None else max_id_result[0] + 1
 
+            
+            order_details = str(self.cart_manager.get_cart_contents())
+            total_cost = self.cart_manager.calculate_total_cost()
+   
+
+
             for item_id, details in self.cart_manager.get_cart_contents().items():
                 cursor.execute("SELECT CurrentStockLevel FROM Inventory WHERE ProductID = %s", (item_id,))
                 stock_level_result = cursor.fetchone()
@@ -609,17 +644,79 @@ class CartFrame(tk.Frame):
                 cursor.execute("UPDATE Inventory SET CurrentStockLevel = CurrentStockLevel - %s WHERE ProductID = %s",
                                (details['quantity'], item_id))
 
-            cursor.execute("INSERT INTO Orders (OrderID, UserID, TotalCost, OrderStatus) VALUES (%s, %s, %s, 'Pending')",
-                           (next_id, user_id, total_cost))
-
+            # Use the next OrderID for the new order
+            cursor.execute("INSERT INTO Orders (OrderID, UserID, OrderDetails, TotalCost, OrderStatus) VALUES (%s, %s, %s, %s, 'Pending')", 
+                        (next_id, user_id, order_details, total_cost))
+            
+            order_id = next_id  # Use next_id as the order_id
+            
+            
+            # Logging order in AuditLog table
+            cursor.execute(
+                "INSERT INTO AuditLog (UserID, ActivityType, AffectedRecordID, ItemDescription) VALUES (%s, %s, %s, %s)",
+                (user_id, 'Order Placed', next_id, order_details))
+            
             for item_id, details in self.cart_manager.get_cart_contents().items():
                 cursor.execute("INSERT INTO OrderDetail (OrderID, ProductID, Quantity, Customized, CustomizationID) VALUES (%s, %s, %s, %s, %s)",
                                (next_id, item_id, details['quantity'], details['customized'], details.get('customization_id', None)))
 
+
             connection.commit()
         except Exception as e:
+
+            print(f"Database insert error: {e}")
+            return None
+
+
+
+
+    #def send_confirmation_email(self, recipient_email, order_id):
+        #sender_email = "southblance@example.com"  # Change this to your company's email address
+        #smtp_server = "your_company_smtp_server.com"  # Change this to your company's SMTP server address
+
+        #message = MIMEMultipart("alternative")
+        #message["Subject"] = "Order Confirmation"
+        #message["From"] = sender_email
+        #message["To"] = recipient_email
+#
+        #text = f"Thank you for your order. Your order ID is {order_id}."
+        #html = f"""\
+        #<html>
+        #  <body>
+        #    <p>Thank you for your order. Your order ID is {order_id}.</p>
+        #  </body>
+        #</html>
+        #"""
+
+        #part1 = MIMEText(text, "plain")
+        #part2 = MIMEText(html, "html")
+
+        #message.attach(part1)
+        #message.attach(part2)
+
+        # Adjust the SMTP connection to use your company's SMTP server
+        #with smtplib.SMTP(smtp_server) as server:
+            #server.sendmail(sender_email, recipient_email, message.as_string())
+
+    def fetch_product_details(self, product_id):
+        product_details = None
+        try:
+            connection = mysql.connector.connect(
+                host=self.db_info['host'],
+                user=self.db_info['user'],
+                passwd=self.db_info['passwd'],
+                database=self.db_info['database']
+            )
+            cursor = connection.cursor(dictionary=True)
+            query = "SELECT ProductName, Price FROM Products WHERE ProductID = %s"
+            cursor.execute(query, (product_id,))
+            product_details = cursor.fetchone()
+        except mysql.connector.Error as error:
+            print(f"Error fetching product details: {error}")
+
             connection.rollback()  # Rollback in case of any error
             raise e
+
         finally:
             cursor.close()
             connection.close()
@@ -863,7 +960,7 @@ def createUsersTable(connection, cursor):
 
 def createDistributionCenterTable(connection, cursor):
     cursor.execute(
-        "CREATE TABLE IF NOT EXISTS  DistributionCenter (SiteID int NOT NULL, DODAddressCode varchar(10), FacilityNo int NOT NULL, FacilityNoLong int, SiteName varchar(255), SitePhone varchar(100), ShippingAddress varchar(255), ShippingAddress2 varchar(255), ShippingAddress3 varchar(255), ShippingAddress4 varchar(255), ShippingCity varchar(255), ShippingState varchar(100), ShippingZip varchar(100), PRIMARY KEY (SiteID))")
+        "CREATE TABLE IF NOT EXISTS  DistributionCenter (SiteID int NOT NULL AUTO_INCREMENT, DODAddressCode varchar(10), FacilityNo int NOT NULL, FacilityNoLong int, SiteName varchar(255), SitePhone varchar(100), ShippingAddress varchar(255), ShippingAddress2 varchar(255), ShippingAddress3 varchar(255), ShippingAddress4 varchar(255), ShippingCity varchar(255), ShippingState varchar(100), ShippingZip varchar(100), PRIMARY KEY (SiteID))")
     connection.commit()
     print("DistributionCenter table created.")
 
@@ -875,7 +972,7 @@ def createOrdersTable(connection, cursor):
 
 def createAuthenticationTable(connection, cursor):
     cursor.execute(
-        "CREATE TABLE IF NOT EXISTS  Authentication (AuthenticationID int NOT NULL, UserID int, HashedPassword varchar(100), LastPasswordChangeDate date, PasswordChangeRequired boolean DEFAULT FALSE, PRIMARY KEY (AuthenticationID))")
+        "CREATE TABLE IF NOT EXISTS  Authentication (AuthenticationID int NOT NULL AUTO_INCREMENT, UserID int, HashedPassword varchar(100), LastPasswordChangeDate date, PasswordChangeRequired boolean DEFAULT FALSE, PRIMARY KEY (AuthenticationID))")
     connection.commit()
     print("Authentication table created.")
 
@@ -899,13 +996,13 @@ def createProductsTable(connection, cursor):
 
 def createInventoryTable(connection, cursor):
     cursor.execute(
-        "CREATE TABLE IF NOT EXISTS  Inventory (InventoryID int NOT NULL, ProductID int, CurrentStockLevel int NOT NULL CHECK (CurrentStockLevel >= 0), PRIMARY KEY (InventoryID))")
+        "CREATE TABLE IF NOT EXISTS  Inventory (InventoryID int NOT NULL AUTO_INCREMENT, ProductID int, CurrentStockLevel int NOT NULL CHECK (CurrentStockLevel >= 0), PRIMARY KEY (InventoryID))")
     connection.commit()
     print("Inventory table created.")
 
 def createAuditLogTable(connection, cursor):
     cursor.execute(
-        "CREATE TABLE IF NOT EXISTS  AuditLog (LogID int NOT NULL, UserID int, ActivityType varchar(255), ActivityTimestamp date, AffectedRecordID int, ItemDescription varchar(255), PRIMARY KEY (LogID))")
+        "CREATE TABLE IF NOT EXISTS  AuditLog (LogID int NOT NULL AUTO_INCREMENT, UserID int, ActivityType varchar(255), ActivityTimestamp datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, AffectedRecordID int, ItemDescription blob, PRIMARY KEY (LogID))")
     connection.commit()
     print("AuditLog table created.")
 
@@ -1086,15 +1183,6 @@ def createViewUserActivityLogs(connection,cursor):
     connection.commit()
     print("userActivityLogs view created.")
 
-# Read all from user table
-def readAllUsers(cursor):
-    sql_query = ("SELECT * FROM Users")
-    cursor.execute(sql_query)
-    print("This is a test to pull all data from users table.")
-    print(cursor.fetchall())
-    print("Test successful. Congrats, this works.")
-
-
 def insertOrUpdateProducts(connection, cursor):
     # Define product details as a list of tuples
     product_details = [
@@ -1175,27 +1263,201 @@ def insertProductColors(connection, cursor):
     print("Product colors linked.")
 
 
+# This will insert all users into the database. This will use all employees listed on the South Balance website. All other data is dummy information.
+# UserRoleID is omitted.
+def insertUsers(connection, cursor):
+    checkIfExists = """
+            SELECT COUNT(*) FROM Users WHERE FirstName = %s AND LastName = %s;
+        """
+    insertIntoUsers = """
+        REPLACE INTO Users (FirstName, LastName, UserEmail, PreferredPaymentMethod, isDeleted) 
+        VALUES (%s, %s, %s, %s, %s);
+    """
 
+    try:
+        with open('./DataImport/UserList.csv', newline='') as csvfile:
+            reader = csv.reader(csvfile)
+            next(reader)  # Skip the header row if your CSV has headers
+
+            for row in reader:
+                # Check if the user already exists
+                cursor.execute(checkIfExists, (row[1], row[2]))
+                exists = cursor.fetchone()[0]
+                if exists == 0:  # If the user does not exist, then insert
+                    data_tuple = (row[1], row[2], row[3], row[4], row[5])
+                    cursor.execute(insertIntoUsers, data_tuple)
+
+        connection.commit()
+        print("User Data inserted successfully.")
+
+    except Exception as e:
+        print("An error occurred:", e)
+        connection.rollback()
 
 
 def insertDistributionCenter(connection, cursor):
-    insertIntoDistributionCenter = """
-    INSERT IGNORE INTO DistributionCenter (SiteID, DODAddressCode, FacilityNo, FacilityNoLong, SiteName, SitePhone, ShippingAddress,ShippingAddress2, ShippingAddress3, ShippingAddress4, ShippingCity, ShippingState, ShippingZip)
-    VALUES (101, 'K885', '1010204', '3468142200', 'LRK LAKESIDE EXP/GAS', '501-988-4888', 'LAKESIDE EXPRESS', 'BLDG 1996 CHIEF WILLIAMS', '', '', 'LITTLE ROCK', 'AR', '720990000');
-    """
-    cursor.execute(insertIntoDistributionCenter)
-    connection.commit()
-    print("Sample distribution center data created.")
+    insert_query = """
+            REPLACE INTO DistributionCenter (DODAddressCode, FacilityNo, SiteName, SitePhone, ShippingAddress, ShippingAddress2, ShippingAddress3, ShippingAddress4, ShippingCity, ShippingState, ShippingZip) 
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
+            """
 
-# This will insert a user into the database. For some reason, this isn't sticking, and I'm wondering if that has something to do with the front end dropping that off. Unsure, this will need to be revisited.
-def insertUsers(connection, cursor):
-    insertIntoUsers = """
-    INSERT IGNORE INTO Users (UserID, FirstName, LastName, UserRoleID, UserEmail, PreferredPaymentMethod, isDeleted)
-    VALUES (10210, 'Johnny', 'Donuts', 1, 'jd@email.com', 'Paypal', FALSE);
+    try:
+        with open('./DataImport/AAFES_DISTRIBUTION_CENTERS.csv', newline='') as csvfile:
+            reader = csv.reader(csvfile)
+            next(reader)  # Skip the header row if your CSV has headers
+
+            for row in reader:
+                # FacilityNoLong will not work for some reason. Omitting for now.
+                data_tuple = (row[0], row[1], row[3], row[4], row[5], row[6], row[7], row[8], row[9], row[10], row[11])
+                cursor.execute(insert_query, data_tuple)
+
+        connection.commit()
+        print("Distribution Center Data inserted successfully.")
+
+    except Exception as e:
+        print("An error occurred:", e)
+        connection.rollback()
+
+def createDatabase(connection, cursor):
+    createNewDatabase = """
+        DROP TABLE IF EXISTS aafesorder;
+        CREATE DATABASE aafesorder;
     """
-    cursor.execute(insertIntoUsers)
+    cursor.execute(createNewDatabase)
     connection.commit()
-    print("Sample user data created.")
+    print("Database created.")
+
+def updateInventoryQuantity(connection, cursor):
+    insert_query = """
+                REPLACE INTO Inventory (InventoryID, ProductID, CurrentStockLevel) 
+                VALUES (%s, %s, %s);
+                """
+
+    try:
+        with open('./DataImport/INVENTORYLEVELS.csv', newline='') as csvfile:
+            reader = csv.reader(csvfile)
+            next(reader)  # Skip the header row if your CSV has headers
+
+            for row in reader:
+                data_tuple = (row[0], row[1], row[2])
+                cursor.execute(insert_query, data_tuple)
+
+        connection.commit()
+        print("Inventory levels updated successfully.")
+
+    except Exception as e:
+        print("An error occurred:", e)
+        connection.rollback()
+
+
+def updateAuthenticationList(connection, cursor):
+    insert_query = """
+                REPLACE INTO Authentication (UserID, HashedPassword) 
+                VALUES (%s, %s);
+                """
+
+    try:
+        with open('./DataImport/AUTHENTICATIONLIST.csv', newline='') as csvfile:
+            reader = csv.reader(csvfile)
+            next(reader)  # Skip the header row if your CSV has headers
+
+            for row in reader:
+                data_tuple = (row[0], row[1])
+                cursor.execute(insert_query, data_tuple)
+
+        connection.commit()
+        print("Authentication updated successfully.")
+
+    except Exception as e:
+        print("An error occurred:", e)
+        connection.rollback()
+
+def insertUserRole(connection, cursor):
+    insert_query = """
+                REPLACE INTO UserRole (UserRoleID, RoleDescription) 
+                VALUES (%s, %s);
+                """
+
+    try:
+        with open('./DataImport/UserRole.csv', newline='') as csvfile:
+            reader = csv.reader(csvfile)
+            next(reader)  # Skip the header row if your CSV has headers
+
+            for row in reader:
+                data_tuple = (row[0], row[1])
+                cursor.execute(insert_query, data_tuple)
+
+        connection.commit()
+        print("User Role List updated successfully.")
+
+    except Exception as e:
+        print("An error occurred:", e)
+        connection.rollback()
+
+
+def checkItemQuantity(connection, cursor, product_id):
+    try:
+        check_query = """
+        SELECT CurrentStockLevel FROM Inventory WHERE ProductID = %s;
+        """
+        cursor.execute(check_query, (product_id,))
+        itemQty = cursor.fetchone()[0]
+        print("Quantity of item with ProductID", product_id, "is:", itemQty)
+        return itemQty
+    except Exception as e:
+        print("An error occurred:", str(e))
+        return None
+
+def reduceInventoryQuantity(connection, cursor, product_id, itemQty):
+    try:
+        update_query = """
+        UPDATE Inventory 
+        SET CurrentStockLevel = CurrentStockLevel - %s
+        WHERE ProductID = %s;
+        """
+        cursor.execute(update_query, (itemQty, product_id))
+        connection.commit()
+
+        # Fetching the updated quantity to confirm and print
+        cursor.execute("SELECT CurrentStockLevel FROM Inventory WHERE ProductID = %s;", (product_id,))
+        updated_qty = cursor.fetchone()[0]  # Assuming fetchone() returns a tuple
+        print(f"The updated quantity of item with ProductID {product_id} is: {updated_qty}")
+
+    except Exception as e:
+        print("An error occurred:", str(e))
+        return None
+
+
+def updateInventoryAfterPurchase(self, user_id):
+    # I do not know why this is not working. I will come back to this after I take a nap and cry a lot.
+
+    try:
+        for row in self.cart_manager.get_cart_contents():
+            self.items = {}
+            productid = self.items[product_id]
+            print("Quantity of item with ProductID", productid, "is:")
+            print("Cart contents after adding items:", self.cart_manager.get_cart_contents())
+        #     reduceInventoryQuantity(connection, cursor, product_id, itemQty)
+        # connection.commit()  # Commit the changes after all updates are done
+    except Exception as e:
+        connection.rollback()  # Rollback if any exception occurs
+        print(f"Inventory correction error: {e}")
+        return None
+    finally:
+        cursor.close()  # Ensure the cursor is closed after operation
+
+def activityLogging(connection, cursor):
+    try:
+        update_query = """
+        INSERT INTO auditLog (UserID, ActivityType, ActivityTimestamp, AffectedRecordID, ItemDescription) 
+        VALUES (%s, %s, %s, %s, %s)
+        """
+        cursor.execute(update_query)
+        connection.commit()
+    except Exception as e:
+        print("An error occurred:", str(e))
+        return None
+
 
 if __name__ == "__main__":
 
@@ -1210,6 +1472,9 @@ if __name__ == "__main__":
 
     # Initialize database cursor
     cursor = connection.cursor()
+
+    # Create database
+    # createDatabase(connection, cursor)
 
     # Create all tables and alter statements
     createUserRoleTable(connection, cursor)
@@ -1243,7 +1508,7 @@ if __name__ == "__main__":
     createViewWarehouseNotificationsView(connection, cursor)
     createViewUserActivityLogs(connection, cursor)
 
-    # Insert sample user into DB
+    # Insert users into DB
     insertUsers(connection, cursor)
 
     # Inserting products into DB and link colors
@@ -1251,13 +1516,17 @@ if __name__ == "__main__":
     insertColorList(connection, cursor)
     insertProductColors(connection, cursor)
 
-    # Insert sample warehouse DB
+    # Insert warehouse DB list from CSV
     insertDistributionCenter(connection, cursor)
 
+    # Update Inventory levels
+    updateInventoryQuantity(connection, cursor)
 
+    # Update Authentication table
+    # updateAuthenticationList(connection, cursor) #Temp disable for testing purposes
 
-    # Read user table
-    readAllUsers(cursor)
+    # Update User Role List
+    insertUserRole(connection, cursor)
 
     app = App()
     app.mainloop()
