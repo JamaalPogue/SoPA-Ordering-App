@@ -140,22 +140,24 @@ class CartManager:
             print("Item is out of stock.")
             messagebox.showerror("Out Of Stock", "Item is out of stock at the warehouse. Please choose a different product.")
         else:
-            if product_id not in self.items:
-              self.items[product_id] = {'product_name': product_name, 'quantity': 0, 'price': price, 'color': color, 'customization': customization, 'customized': customized}
-            self.items[product_id]['quantity'] += quantity
+
             if product_id in self.items:
-                if self.items[product_id] >= itemQty:
+                if self.items[product_id]['quantity']  >= itemQty:
                     print("Maximum Order Reached.")
                     messagebox.showerror("Maximum Order Reached", "You have added the maximum available quantity of this item.")
                 else:
-                    self.items[product_id] += quantity
-            else:
-                self.items[product_id] = quantity
-        if price is not None:
-            self.product_prices[product_id] = price
+                    self.items[product_id]['quantity'] += quantity
+            # else:
+            #     self.items[product_id]['quantity'] = quantity
+        # if price is not None:
+        #     self.product_prices[product_id]['quantity'] = price
 
+            if product_id not in self.items:
+                self.items[product_id] = {'product_name': product_name, 'quantity': 0, 'price': price, 'color': color,
+                                          'customization': customization, 'customized': customized}
+                self.items[product_id]['quantity'] += quantity
+            # self.items[product_id]['quantity'] += quantity
 
-        
         self.notify_observers()
 
 
@@ -966,7 +968,7 @@ def createDistributionCenterTable(connection, cursor):
 
 def createOrdersTable(connection, cursor):
     cursor.execute(
-        "CREATE TABLE IF NOT EXISTS Orders (OrderID int NOT NULL, UserID int, SiteID int, OrderDetails varchar(255), TotalCost decimal(10,2), OrderStatus varchar(255) CHECK (OrderStatus IN ('Pending', 'Completed', 'Canceled')), PRIMARY KEY (OrderID))")
+        "CREATE TABLE IF NOT EXISTS Orders (OrderID int NOT NULL, UserID int, SiteID int, OrderDetails blob, TotalCost decimal(10,2), OrderStatus varchar(255) CHECK (OrderStatus IN ('Pending', 'Completed', 'Canceled')), PRIMARY KEY (OrderID))")
     connection.commit()
     print("Orders table created.")
 
@@ -978,7 +980,7 @@ def createAuthenticationTable(connection, cursor):
 
 def createOrderDetailTable(connection, cursor):
     cursor.execute(
-        "CREATE TABLE IF NOT EXISTS  OrderDetail (OrderDetailID int NOT NULL, OrderID int, ProductID int, Quantity int, Customized boolean, CustomizationID int, PRIMARY KEY (OrderDetailID))")
+        "CREATE TABLE IF NOT EXISTS  OrderDetail (OrderDetailID int NOT NULL AUTO_INCREMENT, OrderID int, ProductID int, Quantity int, Customized boolean, CustomizationID int, PRIMARY KEY (OrderDetailID))")
     connection.commit()
     print("OrderDetail table created.")
 
@@ -1352,8 +1354,9 @@ def updateInventoryQuantity(connection, cursor):
 
 def updateAuthenticationList(connection, cursor):
     insert_query = """
-                REPLACE INTO Authentication (UserID, HashedPassword) 
-                VALUES (%s, %s);
+                INSERT INTO Authentication (AuthenticationID, UserID, HashedPassword) 
+                VALUES (%s, %s, %s)
+                ON DUPLICATE KEY UPDATE HashedPassword=VALUES(HashedPassword);
                 """
 
     try:
@@ -1362,7 +1365,7 @@ def updateAuthenticationList(connection, cursor):
             next(reader)  # Skip the header row if your CSV has headers
 
             for row in reader:
-                data_tuple = (row[0], row[1])
+                data_tuple = (row[0], row[1], row[2])
                 cursor.execute(insert_query, data_tuple)
 
         connection.commit()
@@ -1523,7 +1526,7 @@ if __name__ == "__main__":
     updateInventoryQuantity(connection, cursor)
 
     # Update Authentication table
-    # updateAuthenticationList(connection, cursor) #Temp disable for testing purposes
+    updateAuthenticationList(connection, cursor) #Temp disable for testing purposes
 
     # Update User Role List
     insertUserRole(connection, cursor)
