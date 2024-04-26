@@ -8,6 +8,8 @@ from email.mime.multipart import MIMEMultipart
 import hashlib
 import mysql.connector
 from mysql.connector import Error
+import csv
+import datetime
 
 class PaymentForm(simpledialog.Dialog):
     def __init__(self, parent, title, total_cost):
@@ -131,11 +133,33 @@ class CartManager:
         for observer in self.observers:
             observer()
 
+
     def add_item(self, product_id, product_name, quantity, price, color, customization, customized=False):
-        if product_id not in self.items:
-            self.items[product_id] = {'product_name': product_name, 'quantity': 0, 'price': price, 'color': color, 'customization': customization, 'customized': customized}
-        self.items[product_id]['quantity'] += quantity
+        itemQty = checkItemQuantity(connection, cursor, product_id)  # This will check the quantity of the item in inventory
+        if itemQty == 0: # If there is none in inventory, skip the process.
+            print("Item is out of stock.")
+            messagebox.showerror("Out Of Stock", "Item is out of stock at the warehouse. Please choose a different product.")
+        else:
+
+            if product_id in self.items:
+                if self.items[product_id]['quantity']  >= itemQty:
+                    print("Maximum Order Reached.")
+                    messagebox.showerror("Maximum Order Reached", "You have added the maximum available quantity of this item.")
+                else:
+                    self.items[product_id]['quantity'] += quantity
+            # else:
+            #     self.items[product_id]['quantity'] = quantity
+        # if price is not None:
+        #     self.product_prices[product_id]['quantity'] = price
+
+            if product_id not in self.items:
+                self.items[product_id] = {'product_name': product_name, 'quantity': 0, 'price': price, 'color': color,
+                                          'customization': customization, 'customized': customized}
+                self.items[product_id]['quantity'] += quantity
+            # self.items[product_id]['quantity'] += quantity
+
         self.notify_observers()
+
 
 
     def remove_item(self, product_id, quantity=1):
@@ -352,16 +376,34 @@ class WaterBottleFrame(tk.Frame):
         self.create_widgets()
 
     def create_widgets(self):
-        self.display_products()
         back_button = tk.Button(self, text="Back to Product Order", bg=self.colors['button_bg'], fg=self.colors['button_fg'],
                                 font=("Helvetica", 14), activebackground=self.colors['button_active_bg'],
                                 command=lambda: self.master.show_frame(ProductOrderFrame))
-        back_button.grid(row=0, column=0, pady=10, sticky="w")
-        exit_button = tk.Button(self, text="Exit Application", bg=self.colors['exit_button_bg'], fg="white",
-                                command=self.master.destroy, font=("Arial", 12))
-        exit_button.place(relx=1.0, rely=0.0, anchor="ne", width=120, height=50)
+        back_button.grid(row=0, column=0, sticky="nw", padx=10, pady=10)
 
-    def display_products(self):
+        exit_button = tk.Button(self, text="Exit Application", bg=self.colors['button_bg'], fg=self.colors['button_fg'],
+                                font=("Helvetica", 14), activebackground=self.colors['button_active_bg'],
+                                command=self.master.destroy)
+        exit_button.grid(row=0, column=1, sticky="ne", padx=10, pady=10)
+
+        canvas = tk.Canvas(self, borderwidth=0)
+        scrollbar = tk.Scrollbar(self, orient="vertical", command=canvas.yview)
+        scrollable_frame = tk.Frame(canvas)
+
+        canvas.configure(yscrollcommand=scrollbar.set)
+        canvas.bind('<Configure>', lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
+        canvas.bind_all("<MouseWheel>", lambda e: canvas.yview_scroll(int(-1*(e.delta/120)), "units"))
+
+        canvas.grid(row=1, column=0, sticky="nsew", columnspan=2)
+        scrollbar.grid(row=1, column=2, sticky="ns")
+        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+
+        self.grid_rowconfigure(1, weight=1)
+        self.grid_columnconfigure(0, weight=1)
+
+        self.display_products(scrollable_frame)
+
+    def display_products(self, frame):
         water_bottle_products = [
             (101, 'Bubba 40oz Water Bottle', 'Leakproof lid, cold for 12 hours, vacuum-insulated.', 30.99, 'BubbaLicorice.png', ['Blue', 'Green']),
             (102, 'Bubba Hero Mug', 'Hot up to 6 hours or cold up to 24, leak-proof.', 25.99, 'BubbaHero.png', ['Blue', 'Green']),
@@ -370,45 +412,36 @@ class WaterBottleFrame(tk.Frame):
             (105, 'Bubba 32 oz. Water Bottle, Licorice', 'Leakproof, cold for 12 hours, vacuum-insulated, 32 oz.', 26.99, 'BubbaLicorice.png', ['Blue', 'Green'])
         ]
 
-        row = 1
+        row = 0
         for product_id, name, description, base_price, image_filename, colors in water_bottle_products:
-            try:
-                image = PhotoImage(file=f"./Images/{image_filename}").subsample(9, 9)
-                self.images[product_id] = image
-                label_image = tk.Label(self, image=image)
-                label_image.grid(row=row, column=0, padx=5, pady=2)
-            except Exception as e:
-                print(f"Error loading image {image_filename}: {e}")
-                continue
+            image = PhotoImage(file=f"./Images/{image_filename}").subsample(3, 3)
+            self.images[product_id] = image
+            label_image = tk.Label(frame, image=image)
+            label_image.grid(row=row, column=0, padx=5, pady=5)
 
-            # Product title and description
             label_text = f"{name}: {description}"
-            label_description = tk.Label(self, text=label_text, wraplength=200, justify="left")
-            label_description.grid(row=row, column=1, padx=5, pady=2)
+            label_description = tk.Label(frame, text=label_text, wraplength=300, justify="left")
+            label_description.grid(row=row, column=1, padx=5, pady=5)
 
-            # Dropdown for color selection
-            color_var = tk.StringVar(value=colors[0])  # default color
-            color_menu = tk.OptionMenu(self, color_var, *colors)
-            color_menu.grid(row=row, column=2, padx=5, pady=2)
+            color_var = StringVar(value=colors[0])
+            color_menu = OptionMenu(frame, color_var, *colors)
+            color_menu.grid(row=row, column=2, padx=5, pady=5)
 
-            # Price label and customization dropdown
-            price_var = tk.DoubleVar(value=base_price)  # Store the base price initially
-            price_label = tk.Label(self, text=f"Price: ${price_var.get():.2f}")
-            price_label.grid(row=row, column=4, sticky="w", padx=5, pady=2)
+            customization_var = StringVar(value='None')
+            price_var = DoubleVar(value=base_price)
+            price_label = tk.Label(frame, text=f"Price: ${price_var.get():.2f}")
+            price_label.grid(row=row, column=4, padx=5, pady=5)
 
             customization_options = ['None', 'Patriotic (General)', 'Space Force', 'Marines', 'Coast Guard', 'Army', 'Navy', 'Army National Guard', 'Air Force']
-            customization_var = tk.StringVar(value='None')
-            customization_menu = tk.OptionMenu(self, customization_var, *customization_options,
-                                               command=lambda choice, var=price_var, lbl=price_label: self.update_price(choice, var, lbl, base_price))
-            customization_menu.grid(row=row, column=3, padx=5, pady=2)
+            customization_menu = OptionMenu(frame, customization_var, *customization_options,
+                                            command=lambda value, pid=product_id, pvar=price_var, plabel=price_label, bp=base_price: self.update_price(value, pvar, plabel, bp))
+            customization_menu.grid(row=row, column=3, padx=5, pady=5)
 
-            add_to_cart_button = tk.Button(self, text="Add to Cart", bg=self.colors['button_bg'], fg=self.colors['button_fg'],
-                                           command=lambda pid=product_id, pname=name, p=price_var, c=color_var, cm=customization_var: self.add_to_cart(pid, pname, p.get(), c.get(), cm.get()))
-            add_to_cart_button.grid(row=row, column=5, padx=5, pady=2)
+            add_to_cart_button = tk.Button(frame, text="Add to Cart", bg=self.colors['button_bg'], fg=self.colors['button_fg'],
+                                           command=lambda pid=product_id, pname=name, p=price_var.get(), c=color_var.get(), cm=customization_var.get(): self.add_to_cart(pid, pname, p, c, cm))
+            add_to_cart_button.grid(row=row, column=5, padx=5, pady=5)
 
-
-
-            row += 1
+            row += 1  # Increment row for the next product
 
     def update_price(self, customization, price_var, price_label, base_price):
         if customization == 'Patriotic (General)':
@@ -418,11 +451,10 @@ class WaterBottleFrame(tk.Frame):
         else:
             new_price = base_price
         price_var.set(new_price)
-        price_label.config(text=f"Price: ${new_price:.2f}")  # Update the label text
+        price_label.config(text=f"Price: ${new_price:.2f}")
 
     def add_to_cart(self, product_id, product_name, price, color, customization):
-        # Convert price to float to ensure consistent data type
-        price = float(price) if isinstance(price, decimal.Decimal) else price
+        price = float(price)
         self.cart_manager.add_item(product_id, product_name, 1, price, color, customization, customized=(customization != 'None'))
         messagebox.showinfo("Success", f"Added {product_name} with customization '{customization}' and color '{color}' to cart at price ${price:.2f}.")
 
@@ -437,16 +469,35 @@ class YogaMatFrame(tk.Frame):
         self.create_widgets()
 
     def create_widgets(self):
-        self.display_products()
         back_button = tk.Button(self, text="Back to Product Order", bg=self.colors['button_bg'], fg=self.colors['button_fg'],
                                 font=("Helvetica", 14), activebackground=self.colors['button_active_bg'],
                                 command=lambda: self.master.show_frame(ProductOrderFrame))
-        back_button.grid(row=0, column=0, pady=10, sticky="w")
-        exit_button = tk.Button(self, text="Exit Application", bg=self.colors['exit_button_bg'], fg="white",
-                                command=self.master.destroy, font=("Arial", 12))
-        exit_button.place(relx=1.0, rely=0.0, anchor="ne", width=120, height=50)
+        back_button.grid(row=0, column=0, sticky="nw", padx=10, pady=10)
 
-    def display_products(self):
+        exit_button = tk.Button(self, text="Exit Application", bg=self.colors['button_bg'], fg=self.colors['button_fg'],
+                                font=("Helvetica", 14), activebackground=self.colors['button_active_bg'],
+                                command=self.master.destroy)
+        exit_button.grid(row=0, column=1, sticky="ne", padx=10, pady=10)
+
+        canvas = tk.Canvas(self, borderwidth=0)
+        scrollbar = tk.Scrollbar(self, orient="vertical", command=canvas.yview)
+        scrollable_frame = tk.Frame(canvas)
+
+        canvas.configure(yscrollcommand=scrollbar.set)
+        canvas.bind('<Configure>', lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
+        canvas.bind_all("<MouseWheel>", lambda e: canvas.yview_scroll(int(-1*(e.delta/120)), "units"))
+
+        canvas.grid(row=1, column=0, sticky="nsew", columnspan=2)
+        scrollbar.grid(row=1, column=2, sticky="ns")
+        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+
+        self.grid_rowconfigure(1, weight=1)
+        self.grid_columnconfigure(0, weight=1)
+        scrollable_frame.grid_columnconfigure(0, weight=1)  # Ensure description expands within the scrollable frame
+
+        self.display_products(scrollable_frame)
+
+    def display_products(self, frame):
         yoga_mat_products = [
             (201, 'GoFit Double Thick Yoga Mat', 'Excellent nonslip surface ideal for yoga practice.', 39.99, 'GoFitDoubleThick.png', ['Blue', 'Green']),
             (202, 'GoFit Yoga Mat', 'Provides comfort and protection for Yoga poses.', 24.99, 'GoFitYogaMat.png', ['Blue', 'Green']),
@@ -455,46 +506,40 @@ class YogaMatFrame(tk.Frame):
             (205, 'GoFit Yoga Kit', 'Everything needed for a complete Yoga workout.', 25.50, 'GoFitYogaKit.png', ['Blue', 'Green'])
         ]
 
-        row = 1
-        column = 0  # Start placing items in the left column
-        for idx, (product_id, name, description, base_price, image_filename, colors) in enumerate(yoga_mat_products):
-            if idx == 3:  # Switch to the right column after the first three items
-                column = 1
-                row = 1
-
+        row = 0
+        for product_id, name, description, base_price, image_filename, colors in yoga_mat_products:
             try:
-                image = PhotoImage(file=f"./Images/{image_filename}").subsample(9, 9)
+                image = PhotoImage(file=f"./Images/{image_filename}").subsample(3, 3)
                 self.images[product_id] = image
-                label_image = tk.Label(self, image=image)
-                label_image.grid(row=row, column=column*6, padx=5, pady=2, sticky="w")
+                label_image = tk.Label(frame, image=image)
+                label_image.grid(row=row, column=0, padx=5, pady=5)
             except Exception as e:
                 print(f"Error loading image {image_filename}: {e}")
                 continue
 
             label_text = f"{name}: {description}"
-            label_description = tk.Label(self, text=label_text, wraplength=200, justify="left")
-            label_description.grid(row=row, column=1+column*6, padx=5, pady=2, sticky="w")
+            label_description = tk.Label(frame, text=label_text, wraplength=300, justify="left")
+            label_description.grid(row=row, column=1, padx=5, pady=5)
 
             color_var = StringVar(value=colors[0])
-            color_menu = OptionMenu(self, color_var, *colors)
-            color_menu.grid(row=row, column=2+column*6, padx=5, pady=2)
+            color_menu = OptionMenu(frame, color_var, *colors)
+            color_menu.grid(row=row, column=2, padx=5, pady=5)
 
+            customization_var = StringVar(value='None')
             price_var = DoubleVar(value=base_price)
-            price_label = tk.Label(self, text=f"Price: ${price_var.get():.2f}")
-            price_label.grid(row=row, column=4+column*6, sticky="w", padx=5, pady=2)
+            price_label = tk.Label(frame, text=f"Price: ${price_var.get():.2f}")
+            price_label.grid(row=row, column=3, padx=5, pady=5)
 
             customization_options = ['None', 'Patriotic (General)', 'Space Force', 'Marines', 'Coast Guard', 'Army', 'Navy', 'Army National Guard', 'Air Force']
-            customization_var = StringVar(value='None')
-            customization_menu = OptionMenu(self, customization_var, *customization_options,
+            customization_menu = OptionMenu(frame, customization_var, *customization_options,
                                             command=lambda event=None, c_var=customization_var, p_var=price_var, p_label=price_label, base=base_price: self.update_price(c_var, p_var, p_label, base))
-            customization_menu.grid(row=row, column=3+column*6, padx=5, pady=2)
+            customization_menu.grid(row=row, column=4, padx=5, pady=5)
 
-            add_to_cart_button = tk.Button(self, text="Add to Cart", bg=self.colors['button_bg'], fg=self.colors['button_fg'],
-                                           command=lambda pid=product_id, pname=name, p=price_var, c=color_var, cm=customization_var: self.add_to_cart(pid, pname, p.get(), c.get(), cm.get()))
-            add_to_cart_button.grid(row=row, column=5+column*6, padx=5, pady=2)
+            add_to_cart_button = tk.Button(frame, text="Add to Cart", bg=self.colors['button_bg'], fg=self.colors['button_fg'],
+                                           command=lambda pid=product_id, pname=name, p=price_var.get(), c=color_var.get(), cm=customization_var.get(): self.add_to_cart(pid, pname, p, c, cm))
+            add_to_cart_button.grid(row=row, column=5, padx=5, pady=5)
 
-
-            row += 1
+            row += 1  # Increment row for the next product
 
     def update_price(self, customization_var, price_var, price_label, base_price):
         selected_customization = customization_var.get()
@@ -578,7 +623,14 @@ class CartFrame(tk.Frame):
             payment_dialog = PaymentForm(self, "Payment Information", total_cost)
             if hasattr(payment_dialog, 'payment_success') and payment_dialog.payment_success:
                 try:
+
+                    # if user_email:
+                    #     self.send_confirmation_email(user_email, order_id)
+                    # else:
+                    #     messagebox.showwarning("Warning", "No email found for user. Order submitted, but confirmation email not sent.")
+                    # updateInventoryAfterPurchase(self, user_id)
                     order_id = self.place_order_in_database(user_id, total_cost)
+
                     self.cart_manager.clear_cart()
                     messagebox.showinfo("Order Submitted", "Thank you for your order. Your order has been successfully processed.")
                 except Exception as e:
@@ -596,6 +648,12 @@ class CartFrame(tk.Frame):
             max_id_result = cursor.fetchone()
             next_id = 1 if max_id_result is None or max_id_result[0] is None else max_id_result[0] + 1
 
+            
+            order_details = str(self.cart_manager.get_cart_contents())
+            total_cost = self.cart_manager.calculate_total_cost()
+   
+
+
             for item_id, details in self.cart_manager.get_cart_contents().items():
                 cursor.execute("SELECT CurrentStockLevel FROM Inventory WHERE ProductID = %s", (item_id,))
                 stock_level_result = cursor.fetchone()
@@ -609,17 +667,79 @@ class CartFrame(tk.Frame):
                 cursor.execute("UPDATE Inventory SET CurrentStockLevel = CurrentStockLevel - %s WHERE ProductID = %s",
                                (details['quantity'], item_id))
 
-            cursor.execute("INSERT INTO Orders (OrderID, UserID, TotalCost, OrderStatus) VALUES (%s, %s, %s, 'Pending')",
-                           (next_id, user_id, total_cost))
-
+            # Use the next OrderID for the new order
+            cursor.execute("INSERT INTO Orders (OrderID, UserID, OrderDetails, TotalCost, OrderStatus) VALUES (%s, %s, %s, %s, 'Pending')", 
+                        (next_id, user_id, order_details, total_cost))
+            
+            order_id = next_id  # Use next_id as the order_id
+            
+            
+            # Logging order in AuditLog table
+            cursor.execute(
+                "INSERT INTO AuditLog (UserID, ActivityType, AffectedRecordID, ItemDescription) VALUES (%s, %s, %s, %s)",
+                (user_id, 'Order Placed', next_id, order_details))
+            
             for item_id, details in self.cart_manager.get_cart_contents().items():
                 cursor.execute("INSERT INTO OrderDetail (OrderID, ProductID, Quantity, Customized, CustomizationID) VALUES (%s, %s, %s, %s, %s)",
                                (next_id, item_id, details['quantity'], details['customized'], details.get('customization_id', None)))
 
+
             connection.commit()
         except Exception as e:
+
+            print(f"Database insert error: {e}")
+            return None
+
+
+
+
+    #def send_confirmation_email(self, recipient_email, order_id):
+        #sender_email = "southblance@example.com"  # Change this to your company's email address
+        #smtp_server = "your_company_smtp_server.com"  # Change this to your company's SMTP server address
+
+        #message = MIMEMultipart("alternative")
+        #message["Subject"] = "Order Confirmation"
+        #message["From"] = sender_email
+        #message["To"] = recipient_email
+#
+        #text = f"Thank you for your order. Your order ID is {order_id}."
+        #html = f"""\
+        #<html>
+        #  <body>
+        #    <p>Thank you for your order. Your order ID is {order_id}.</p>
+        #  </body>
+        #</html>
+        #"""
+
+        #part1 = MIMEText(text, "plain")
+        #part2 = MIMEText(html, "html")
+
+        #message.attach(part1)
+        #message.attach(part2)
+
+        # Adjust the SMTP connection to use your company's SMTP server
+        #with smtplib.SMTP(smtp_server) as server:
+            #server.sendmail(sender_email, recipient_email, message.as_string())
+
+    def fetch_product_details(self, product_id):
+        product_details = None
+        try:
+            connection = mysql.connector.connect(
+                host=self.db_info['host'],
+                user=self.db_info['user'],
+                passwd=self.db_info['passwd'],
+                database=self.db_info['database']
+            )
+            cursor = connection.cursor(dictionary=True)
+            query = "SELECT ProductName, Price FROM Products WHERE ProductID = %s"
+            cursor.execute(query, (product_id,))
+            product_details = cursor.fetchone()
+        except mysql.connector.Error as error:
+            print(f"Error fetching product details: {error}")
+
             connection.rollback()  # Rollback in case of any error
             raise e
+
         finally:
             cursor.close()
             connection.close()
@@ -863,25 +983,25 @@ def createUsersTable(connection, cursor):
 
 def createDistributionCenterTable(connection, cursor):
     cursor.execute(
-        "CREATE TABLE IF NOT EXISTS  DistributionCenter (SiteID int NOT NULL, DODAddressCode varchar(10), FacilityNo int NOT NULL, FacilityNoLong int, SiteName varchar(255), SitePhone varchar(100), ShippingAddress varchar(255), ShippingAddress2 varchar(255), ShippingAddress3 varchar(255), ShippingAddress4 varchar(255), ShippingCity varchar(255), ShippingState varchar(100), ShippingZip varchar(100), PRIMARY KEY (SiteID))")
+        "CREATE TABLE IF NOT EXISTS  DistributionCenter (SiteID int NOT NULL AUTO_INCREMENT, DODAddressCode varchar(10), FacilityNo int NOT NULL, FacilityNoLong int, SiteName varchar(255), SitePhone varchar(100), ShippingAddress varchar(255), ShippingAddress2 varchar(255), ShippingAddress3 varchar(255), ShippingAddress4 varchar(255), ShippingCity varchar(255), ShippingState varchar(100), ShippingZip varchar(100), PRIMARY KEY (SiteID))")
     connection.commit()
     print("DistributionCenter table created.")
 
 def createOrdersTable(connection, cursor):
     cursor.execute(
-        "CREATE TABLE IF NOT EXISTS Orders (OrderID int NOT NULL, UserID int, SiteID int, OrderDetails varchar(255), TotalCost decimal(10,2), OrderStatus varchar(255) CHECK (OrderStatus IN ('Pending', 'Completed', 'Canceled')), PRIMARY KEY (OrderID))")
+        "CREATE TABLE IF NOT EXISTS Orders (OrderID int NOT NULL, UserID int, SiteID int, OrderDetails blob, TotalCost decimal(10,2), OrderStatus varchar(255) CHECK (OrderStatus IN ('Pending', 'Completed', 'Canceled')), PRIMARY KEY (OrderID))")
     connection.commit()
     print("Orders table created.")
 
 def createAuthenticationTable(connection, cursor):
     cursor.execute(
-        "CREATE TABLE IF NOT EXISTS  Authentication (AuthenticationID int NOT NULL, UserID int, HashedPassword varchar(100), LastPasswordChangeDate date, PasswordChangeRequired boolean DEFAULT FALSE, PRIMARY KEY (AuthenticationID))")
+        "CREATE TABLE IF NOT EXISTS  Authentication (AuthenticationID int NOT NULL AUTO_INCREMENT, UserID int, HashedPassword varchar(100), LastPasswordChangeDate date, PasswordChangeRequired boolean DEFAULT FALSE, PRIMARY KEY (AuthenticationID))")
     connection.commit()
     print("Authentication table created.")
 
 def createOrderDetailTable(connection, cursor):
     cursor.execute(
-        "CREATE TABLE IF NOT EXISTS  OrderDetail (OrderDetailID int NOT NULL, OrderID int, ProductID int, Quantity int, Customized boolean, CustomizationID int, PRIMARY KEY (OrderDetailID))")
+        "CREATE TABLE IF NOT EXISTS  OrderDetail (OrderDetailID int NOT NULL AUTO_INCREMENT, OrderID int, ProductID int, Quantity int, Customized boolean, CustomizationID int, PRIMARY KEY (OrderDetailID))")
     connection.commit()
     print("OrderDetail table created.")
 
@@ -899,13 +1019,13 @@ def createProductsTable(connection, cursor):
 
 def createInventoryTable(connection, cursor):
     cursor.execute(
-        "CREATE TABLE IF NOT EXISTS  Inventory (InventoryID int NOT NULL, ProductID int, CurrentStockLevel int NOT NULL CHECK (CurrentStockLevel >= 0), PRIMARY KEY (InventoryID))")
+        "CREATE TABLE IF NOT EXISTS  Inventory (InventoryID int NOT NULL AUTO_INCREMENT, ProductID int, CurrentStockLevel int NOT NULL CHECK (CurrentStockLevel >= 0), PRIMARY KEY (InventoryID))")
     connection.commit()
     print("Inventory table created.")
 
 def createAuditLogTable(connection, cursor):
     cursor.execute(
-        "CREATE TABLE IF NOT EXISTS  AuditLog (LogID int NOT NULL, UserID int, ActivityType varchar(255), ActivityTimestamp date, AffectedRecordID int, ItemDescription varchar(255), PRIMARY KEY (LogID))")
+        "CREATE TABLE IF NOT EXISTS  AuditLog (LogID int NOT NULL AUTO_INCREMENT, UserID int, ActivityType varchar(255), ActivityTimestamp datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, AffectedRecordID int, ItemDescription blob, PRIMARY KEY (LogID))")
     connection.commit()
     print("AuditLog table created.")
 
@@ -1086,15 +1206,6 @@ def createViewUserActivityLogs(connection,cursor):
     connection.commit()
     print("userActivityLogs view created.")
 
-# Read all from user table
-def readAllUsers(cursor):
-    sql_query = ("SELECT * FROM Users")
-    cursor.execute(sql_query)
-    print("This is a test to pull all data from users table.")
-    print(cursor.fetchall())
-    print("Test successful. Congrats, this works.")
-
-
 def insertOrUpdateProducts(connection, cursor):
     # Define product details as a list of tuples
     product_details = [
@@ -1175,27 +1286,202 @@ def insertProductColors(connection, cursor):
     print("Product colors linked.")
 
 
+# This will insert all users into the database. This will use all employees listed on the South Balance website. All other data is dummy information.
+# UserRoleID is omitted.
+def insertUsers(connection, cursor):
+    checkIfExists = """
+            SELECT COUNT(*) FROM Users WHERE FirstName = %s AND LastName = %s;
+        """
+    insertIntoUsers = """
+        REPLACE INTO Users (FirstName, LastName, UserEmail, PreferredPaymentMethod, isDeleted) 
+        VALUES (%s, %s, %s, %s, %s);
+    """
 
+    try:
+        with open('./DataImport/UserList.csv', newline='') as csvfile:
+            reader = csv.reader(csvfile)
+            next(reader)  # Skip the header row if your CSV has headers
+
+            for row in reader:
+                # Check if the user already exists
+                cursor.execute(checkIfExists, (row[1], row[2]))
+                exists = cursor.fetchone()[0]
+                if exists == 0:  # If the user does not exist, then insert
+                    data_tuple = (row[1], row[2], row[3], row[4], row[5])
+                    cursor.execute(insertIntoUsers, data_tuple)
+
+        connection.commit()
+        print("User Data inserted successfully.")
+
+    except Exception as e:
+        print("An error occurred:", e)
+        connection.rollback()
 
 
 def insertDistributionCenter(connection, cursor):
-    insertIntoDistributionCenter = """
-    INSERT IGNORE INTO DistributionCenter (SiteID, DODAddressCode, FacilityNo, FacilityNoLong, SiteName, SitePhone, ShippingAddress,ShippingAddress2, ShippingAddress3, ShippingAddress4, ShippingCity, ShippingState, ShippingZip)
-    VALUES (101, 'K885', '1010204', '3468142200', 'LRK LAKESIDE EXP/GAS', '501-988-4888', 'LAKESIDE EXPRESS', 'BLDG 1996 CHIEF WILLIAMS', '', '', 'LITTLE ROCK', 'AR', '720990000');
-    """
-    cursor.execute(insertIntoDistributionCenter)
-    connection.commit()
-    print("Sample distribution center data created.")
+    insert_query = """
+            REPLACE INTO DistributionCenter (DODAddressCode, FacilityNo, SiteName, SitePhone, ShippingAddress, ShippingAddress2, ShippingAddress3, ShippingAddress4, ShippingCity, ShippingState, ShippingZip) 
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
+            """
 
-# This will insert a user into the database. For some reason, this isn't sticking, and I'm wondering if that has something to do with the front end dropping that off. Unsure, this will need to be revisited.
-def insertUsers(connection, cursor):
-    insertIntoUsers = """
-    INSERT IGNORE INTO Users (UserID, FirstName, LastName, UserRoleID, UserEmail, PreferredPaymentMethod, isDeleted)
-    VALUES (10210, 'Johnny', 'Donuts', 1, 'jd@email.com', 'Paypal', FALSE);
+    try:
+        with open('./DataImport/AAFES_DISTRIBUTION_CENTERS.csv', newline='') as csvfile:
+            reader = csv.reader(csvfile)
+            next(reader)  # Skip the header row if your CSV has headers
+
+            for row in reader:
+                # FacilityNoLong will not work for some reason. Omitting for now.
+                data_tuple = (row[0], row[1], row[3], row[4], row[5], row[6], row[7], row[8], row[9], row[10], row[11])
+                cursor.execute(insert_query, data_tuple)
+
+        connection.commit()
+        print("Distribution Center Data inserted successfully.")
+
+    except Exception as e:
+        print("An error occurred:", e)
+        connection.rollback()
+
+def createDatabase(connection, cursor):
+    createNewDatabase = """
+        DROP TABLE IF EXISTS aafesorder;
+        CREATE DATABASE aafesorder;
     """
-    cursor.execute(insertIntoUsers)
+    cursor.execute(createNewDatabase)
     connection.commit()
-    print("Sample user data created.")
+    print("Database created.")
+
+def updateInventoryQuantity(connection, cursor):
+    insert_query = """
+                REPLACE INTO Inventory (InventoryID, ProductID, CurrentStockLevel) 
+                VALUES (%s, %s, %s);
+                """
+
+    try:
+        with open('./DataImport/INVENTORYLEVELS.csv', newline='') as csvfile:
+            reader = csv.reader(csvfile)
+            next(reader)  # Skip the header row if your CSV has headers
+
+            for row in reader:
+                data_tuple = (row[0], row[1], row[2])
+                cursor.execute(insert_query, data_tuple)
+
+        connection.commit()
+        print("Inventory levels updated successfully.")
+
+    except Exception as e:
+        print("An error occurred:", e)
+        connection.rollback()
+
+
+def updateAuthenticationList(connection, cursor):
+    insert_query = """
+                INSERT INTO Authentication (AuthenticationID, UserID, HashedPassword) 
+                VALUES (%s, %s, %s)
+                ON DUPLICATE KEY UPDATE HashedPassword=VALUES(HashedPassword);
+                """
+
+    try:
+        with open('./DataImport/AUTHENTICATIONLIST.csv', newline='') as csvfile:
+            reader = csv.reader(csvfile)
+            next(reader)  # Skip the header row if your CSV has headers
+
+            for row in reader:
+                data_tuple = (row[0], row[1], row[2])
+                cursor.execute(insert_query, data_tuple)
+
+        connection.commit()
+        print("Authentication updated successfully.")
+
+    except Exception as e:
+        print("An error occurred:", e)
+        connection.rollback()
+
+def insertUserRole(connection, cursor):
+    insert_query = """
+                REPLACE INTO UserRole (UserRoleID, RoleDescription) 
+                VALUES (%s, %s);
+                """
+
+    try:
+        with open('./DataImport/UserRole.csv', newline='') as csvfile:
+            reader = csv.reader(csvfile)
+            next(reader)  # Skip the header row if your CSV has headers
+
+            for row in reader:
+                data_tuple = (row[0], row[1])
+                cursor.execute(insert_query, data_tuple)
+
+        connection.commit()
+        print("User Role List updated successfully.")
+
+    except Exception as e:
+        print("An error occurred:", e)
+        connection.rollback()
+
+
+def checkItemQuantity(connection, cursor, product_id):
+    try:
+        check_query = """
+        SELECT CurrentStockLevel FROM Inventory WHERE ProductID = %s;
+        """
+        cursor.execute(check_query, (product_id,))
+        itemQty = cursor.fetchone()[0]
+        print("Quantity of item with ProductID", product_id, "is:", itemQty)
+        return itemQty
+    except Exception as e:
+        print("An error occurred:", str(e))
+        return None
+
+def reduceInventoryQuantity(connection, cursor, product_id, itemQty):
+    try:
+        update_query = """
+        UPDATE Inventory 
+        SET CurrentStockLevel = CurrentStockLevel - %s
+        WHERE ProductID = %s;
+        """
+        cursor.execute(update_query, (itemQty, product_id))
+        connection.commit()
+
+        # Fetching the updated quantity to confirm and print
+        cursor.execute("SELECT CurrentStockLevel FROM Inventory WHERE ProductID = %s;", (product_id,))
+        updated_qty = cursor.fetchone()[0]  # Assuming fetchone() returns a tuple
+        print(f"The updated quantity of item with ProductID {product_id} is: {updated_qty}")
+
+    except Exception as e:
+        print("An error occurred:", str(e))
+        return None
+
+
+def updateInventoryAfterPurchase(self, user_id):
+    # I do not know why this is not working. I will come back to this after I take a nap and cry a lot.
+
+    try:
+        for row in self.cart_manager.get_cart_contents():
+            self.items = {}
+            productid = self.items[product_id]
+            print("Quantity of item with ProductID", productid, "is:")
+            print("Cart contents after adding items:", self.cart_manager.get_cart_contents())
+        #     reduceInventoryQuantity(connection, cursor, product_id, itemQty)
+        # connection.commit()  # Commit the changes after all updates are done
+    except Exception as e:
+        connection.rollback()  # Rollback if any exception occurs
+        print(f"Inventory correction error: {e}")
+        return None
+    finally:
+        cursor.close()  # Ensure the cursor is closed after operation
+
+def activityLogging(connection, cursor):
+    try:
+        update_query = """
+        INSERT INTO auditLog (UserID, ActivityType, ActivityTimestamp, AffectedRecordID, ItemDescription) 
+        VALUES (%s, %s, %s, %s, %s)
+        """
+        cursor.execute(update_query)
+        connection.commit()
+    except Exception as e:
+        print("An error occurred:", str(e))
+        return None
+
 
 if __name__ == "__main__":
 
@@ -1210,6 +1496,9 @@ if __name__ == "__main__":
 
     # Initialize database cursor
     cursor = connection.cursor()
+
+    # Create database
+    # createDatabase(connection, cursor)
 
     # Create all tables and alter statements
     createUserRoleTable(connection, cursor)
@@ -1243,7 +1532,7 @@ if __name__ == "__main__":
     createViewWarehouseNotificationsView(connection, cursor)
     createViewUserActivityLogs(connection, cursor)
 
-    # Insert sample user into DB
+    # Insert users into DB
     insertUsers(connection, cursor)
 
     # Inserting products into DB and link colors
@@ -1251,13 +1540,17 @@ if __name__ == "__main__":
     insertColorList(connection, cursor)
     insertProductColors(connection, cursor)
 
-    # Insert sample warehouse DB
+    # Insert warehouse DB list from CSV
     insertDistributionCenter(connection, cursor)
 
+    # Update Inventory levels
+    updateInventoryQuantity(connection, cursor)
 
+    # Update Authentication table
+    updateAuthenticationList(connection, cursor) #Temp disable for testing purposes
 
-    # Read user table
-    readAllUsers(cursor)
+    # Update User Role List
+    insertUserRole(connection, cursor)
 
     app = App()
     app.mainloop()
