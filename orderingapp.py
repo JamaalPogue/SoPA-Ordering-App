@@ -136,29 +136,30 @@ class CartManager:
 
     def add_item(self, product_id, product_name, quantity, price, color, customization, customized=False):
         itemQty = checkItemQuantity(connection, cursor, product_id)  # This will check the quantity of the item in inventory
-        if itemQty == 0: # If there is none in inventory, skip the process.
+        if itemQty == 0:  # If there is none in inventory, skip the process.
             print("Item is out of stock.")
             messagebox.showerror("Out Of Stock", "Item is out of stock at the warehouse. Please choose a different product.")
         else:
-
             if product_id in self.items:
-                if self.items[product_id]['quantity']  >= itemQty:
+                if self.items[product_id]['quantity'] >= itemQty:
                     print("Maximum Order Reached.")
                     messagebox.showerror("Maximum Order Reached", "You have added the maximum available quantity of this item.")
                 else:
                     self.items[product_id]['quantity'] += quantity
-            # else:
-            #     self.items[product_id]['quantity'] = quantity
-        # if price is not None:
-        #     self.product_prices[product_id]['quantity'] = price
+                    self.items[product_id]['price'] = price  # Ensure the price is updated
+                    self.items[product_id]['customization'] = customization  # Ensure the customization is updated
+                    self.items[product_id]['customized'] = customized
+            else:
+                self.items[product_id] = {
+                    'product_name': product_name,
+                    'quantity': quantity,
+                    'price': price,
+                    'color': color,
+                    'customization': customization,
+                    'customized': customized
+                }
 
-            if product_id not in self.items:
-                self.items[product_id] = {'product_name': product_name, 'quantity': 0, 'price': price, 'color': color,
-                                          'customization': customization, 'customized': customized}
-                self.items[product_id]['quantity'] += quantity
-            # self.items[product_id]['quantity'] += quantity
-
-        self.notify_observers()
+            self.notify_observers()
 
 
 
@@ -414,7 +415,7 @@ class WaterBottleFrame(tk.Frame):
 
         row = 0
         for product_id, name, description, base_price, image_filename, colors in water_bottle_products:
-            image = PhotoImage(file=f"./Images/{image_filename}").subsample(3, 3)
+            image = PhotoImage(file=f"./Images/{image_filename}").subsample(6, 6)
             self.images[product_id] = image
             label_image = tk.Label(frame, image=image)
             label_image.grid(row=row, column=0, padx=5, pady=5)
@@ -438,10 +439,13 @@ class WaterBottleFrame(tk.Frame):
             customization_menu.grid(row=row, column=3, padx=5, pady=5)
 
             add_to_cart_button = tk.Button(frame, text="Add to Cart", bg=self.colors['button_bg'], fg=self.colors['button_fg'],
-                                           command=lambda pid=product_id, pname=name, p=price_var.get(), c=color_var.get(), cm=customization_var.get(): self.add_to_cart(pid, pname, p, c, cm))
-            add_to_cart_button.grid(row=row, column=5, padx=5, pady=5)
+                                           command=lambda pid=product_id, pname=name, p=price_var, c=color_var, cm=customization_var: self.add_to_cart(pid, pname, p.get(), c.get(), cm.get()))
+            add_to_cart_button.grid(row=row, column=5, padx=5, pady=2)
 
-            row += 1  # Increment row for the next product
+
+
+            row += 1
+            
 
     def update_price(self, customization, price_var, price_label, base_price):
         if customization == 'Patriotic (General)':
@@ -451,10 +455,11 @@ class WaterBottleFrame(tk.Frame):
         else:
             new_price = base_price
         price_var.set(new_price)
-        price_label.config(text=f"Price: ${new_price:.2f}")
+        price_label.config(text=f"Price: ${new_price:.2f}")  # Update the label text
 
     def add_to_cart(self, product_id, product_name, price, color, customization):
-        price = float(price)
+        # Convert price to float to ensure consistent data type
+        price = float(price) if isinstance(price, decimal.Decimal) else price
         self.cart_manager.add_item(product_id, product_name, 1, price, color, customization, customized=(customization != 'None'))
         messagebox.showinfo("Success", f"Added {product_name} with customization '{customization}' and color '{color}' to cart at price ${price:.2f}.")
 
@@ -509,7 +514,7 @@ class YogaMatFrame(tk.Frame):
         row = 0
         for product_id, name, description, base_price, image_filename, colors in yoga_mat_products:
             try:
-                image = PhotoImage(file=f"./Images/{image_filename}").subsample(3, 3)
+                image = PhotoImage(file=f"./Images/{image_filename}").subsample(6, 6)
                 self.images[product_id] = image
                 label_image = tk.Label(frame, image=image)
                 label_image.grid(row=row, column=0, padx=5, pady=5)
@@ -528,33 +533,36 @@ class YogaMatFrame(tk.Frame):
             customization_var = StringVar(value='None')
             price_var = DoubleVar(value=base_price)
             price_label = tk.Label(frame, text=f"Price: ${price_var.get():.2f}")
-            price_label.grid(row=row, column=3, padx=5, pady=5)
+            price_label.grid(row=row, column=4, padx=5, pady=5)
 
             customization_options = ['None', 'Patriotic (General)', 'Space Force', 'Marines', 'Coast Guard', 'Army', 'Navy', 'Army National Guard', 'Air Force']
             customization_menu = OptionMenu(frame, customization_var, *customization_options,
-                                            command=lambda event=None, c_var=customization_var, p_var=price_var, p_label=price_label, base=base_price: self.update_price(c_var, p_var, p_label, base))
-            customization_menu.grid(row=row, column=4, padx=5, pady=5)
+                                            command=lambda value, pid=product_id, pvar=price_var, plabel=price_label, bp=base_price: self.update_price(value, pvar, plabel, bp))
+            customization_menu.grid(row=row, column=3, padx=5, pady=5)
 
             add_to_cart_button = tk.Button(frame, text="Add to Cart", bg=self.colors['button_bg'], fg=self.colors['button_fg'],
-                                           command=lambda pid=product_id, pname=name, p=price_var.get(), c=color_var.get(), cm=customization_var.get(): self.add_to_cart(pid, pname, p, c, cm))
-            add_to_cart_button.grid(row=row, column=5, padx=5, pady=5)
+                                           command=lambda pid=product_id, pname=name, p=price_var, c=color_var, cm=customization_var: self.add_to_cart(pid, pname, p.get(), c.get(), cm.get()))
+            add_to_cart_button.grid(row=row, column=5, padx=5, pady=2)
 
-            row += 1  # Increment row for the next product
 
-    def update_price(self, customization_var, price_var, price_label, base_price):
-        selected_customization = customization_var.get()
-        if selected_customization == 'Patriotic (General)':
+
+            row += 1
+            
+
+    def update_price(self, customization, price_var, price_label, base_price):
+        if customization == 'Patriotic (General)':
             new_price = base_price + 2
-        elif selected_customization in ['Space Force', 'Marines', 'Coast Guard', 'Army', 'Navy', 'Army National Guard', 'Air Force']:
+        elif customization in ['Space Force', 'Marines', 'Coast Guard', 'Army', 'Navy', 'Army National Guard', 'Air Force']:
             new_price = base_price + 5
         else:
             new_price = base_price
-
         price_var.set(new_price)
-        price_label.config(text=f"Price: ${new_price:.2f}")
+        price_label.config(text=f"Price: ${new_price:.2f}")  # Update the label text
 
     def add_to_cart(self, product_id, product_name, price, color, customization):
-        self.cart_manager.add_item(product_id, product_name, 1, float(price), color, customization, customized=(customization != 'None'))
+        # Convert price to float to ensure consistent data type
+        price = float(price) if isinstance(price, decimal.Decimal) else price
+        self.cart_manager.add_item(product_id, product_name, 1, price, color, customization, customized=(customization != 'None'))
         messagebox.showinfo("Success", f"Added {product_name} with customization '{customization}' and color '{color}' to cart at price ${price:.2f}.")
 
 class CartFrame(tk.Frame):
@@ -598,19 +606,21 @@ class CartFrame(tk.Frame):
             widget.destroy()
 
         tk.Label(self.cart_items_frame, text="Your Cart:", font=("Helvetica", 16, "bold")).grid(row=0, column=0, columnspan=2, sticky="w")
-    
+
         cart_contents = self.cart_manager.get_cart_contents()
         if cart_contents:
             index = 1
             for product_id, details in cart_contents.items():
                 product_name = details['product_name']
                 quantity = details['quantity']
-                price = float(details['price'])
+                price = details['price']
                 total_price = price * quantity
-                tk.Label(self.cart_items_frame, text=f"{product_name} - Quantity: {quantity} - ${total_price:.2f}", font=("Helvetica", 12)).grid(row=index, column=0, sticky="w")
+                customization = details['customization']
+                tk.Label(self.cart_items_frame, text=f"{product_name} - Quantity: {quantity} - Customization: {customization} - ${total_price:.2f}", font=("Helvetica", 12)).grid(row=index, column=0, sticky="w")
                 index += 1
         else:
             tk.Label(self.cart_items_frame, text="Your cart is empty.", font=("Helvetica", 12)).grid(row=1, column=0, sticky="w")
+
 
     def submit_order(self):
         user_id = self.master.current_user_id
