@@ -136,6 +136,7 @@ class CartManager:
 
     def add_item(self, product_id, product_name, quantity, price, color, customization, customized=False):
         itemQty = checkItemQuantity(connection, cursor, product_id)  # This will check the quantity of the item in inventory
+
         if itemQty == 0:  # If there is none in inventory, skip the process.
             print("Item is out of stock.")
             messagebox.showerror("Out Of Stock", "Item is out of stock at the warehouse. Please choose a different product.")
@@ -149,17 +150,13 @@ class CartManager:
                     self.items[product_id]['price'] = price  # Ensure the price is updated
                     self.items[product_id]['customization'] = customization  # Ensure the customization is updated
                     self.items[product_id]['customized'] = customized
-            else:
-                self.items[product_id] = {
-                    'product_name': product_name,
-                    'quantity': quantity,
-                    'price': price,
-                    'color': color,
-                    'customization': customization,
-                    'customized': customized
-                }
-
-            self.notify_observers()
+            else:            
+            # if product_id not in self.items:
+                self.items[product_id] = {'product_name': product_name, 'quantity': 0, 'price': price, 'color': color,
+                                          'customization': customization, 'customized': customized}
+                self.items[product_id]['quantity'] += quantity
+            
+        self.notify_observers()
 
 
 

@@ -1,0 +1,13 @@
+﻿UserID,FirstName,LastName,UserEmail,PreferredPaymentMethod,isDeleted
+101,George,Ruth,gruth@email.com,Credit Card,0
+102,Walter,Johnson,wjohnson@email.com,Zelle,0
+103,Elaine,Benes,eben@email.com,Credit Card,0
+104,Antonia,Lazzeri,alazzeri@email.com,Paypal,0
+105,Marion,Mantle,mmantle@email.com,Paypal,0
+106,Louise,Gehrig,lgehrig@email.com,Paypal,0
+107,Diana,Jeter,djeter@email.com,Paypal,0
+108,Henry,Greenburg,hgreenburg@email.com,Credit Card,0
+108,Jason,Jones,jjones@email.com,Credit Card,0
+110,Mariana,Rivera,mrivera@email.com,Credit Card,0
+999,Jamaal,Pogue,jpogue1@tulane.edu,Credit Card,0
+,Joey,Roses,,,0
