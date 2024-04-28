@@ -136,28 +136,26 @@ class CartManager:
 
     def add_item(self, product_id, product_name, quantity, price, color, customization, customized=False):
         itemQty = checkItemQuantity(connection, cursor, product_id)  # This will check the quantity of the item in inventory
-        if itemQty == 0: # If there is none in inventory, skip the process.
+
+        if itemQty == 0:  # If there is none in inventory, skip the process.
             print("Item is out of stock.")
             messagebox.showerror("Out Of Stock", "Item is out of stock at the warehouse. Please choose a different product.")
         else:
-
             if product_id in self.items:
-                if self.items[product_id]['quantity']  >= itemQty:
+                if self.items[product_id]['quantity'] >= itemQty:
                     print("Maximum Order Reached.")
                     messagebox.showerror("Maximum Order Reached", "You have added the maximum available quantity of this item.")
                 else:
                     self.items[product_id]['quantity'] += quantity
-            # else:
-            #     self.items[product_id]['quantity'] = quantity
-        # if price is not None:
-        #     self.product_prices[product_id]['quantity'] = price
-
-            if product_id not in self.items:
+                    self.items[product_id]['price'] = price  # Ensure the price is updated
+                    self.items[product_id]['customization'] = customization  # Ensure the customization is updated
+                    self.items[product_id]['customized'] = customized
+            else:            
+            # if product_id not in self.items:
                 self.items[product_id] = {'product_name': product_name, 'quantity': 0, 'price': price, 'color': color,
                                           'customization': customization, 'customized': customized}
                 self.items[product_id]['quantity'] += quantity
-            # self.items[product_id]['quantity'] += quantity
-
+            
         self.notify_observers()
 
 
@@ -376,16 +374,34 @@ class WaterBottleFrame(tk.Frame):
         self.create_widgets()
 
     def create_widgets(self):
-        self.display_products()
         back_button = tk.Button(self, text="Back to Product Order", bg=self.colors['button_bg'], fg=self.colors['button_fg'],
                                 font=("Helvetica", 14), activebackground=self.colors['button_active_bg'],
                                 command=lambda: self.master.show_frame(ProductOrderFrame))
-        back_button.grid(row=0, column=0, pady=10, sticky="w")
-        exit_button = tk.Button(self, text="Exit Application", bg=self.colors['exit_button_bg'], fg="white",
-                                command=self.master.destroy, font=("Arial", 12))
-        exit_button.place(relx=1.0, rely=0.0, anchor="ne", width=120, height=50)
+        back_button.grid(row=0, column=0, sticky="nw", padx=10, pady=10)
 
-    def display_products(self):
+        exit_button = tk.Button(self, text="Exit Application", bg=self.colors['button_bg'], fg=self.colors['button_fg'],
+                                font=("Helvetica", 14), activebackground=self.colors['button_active_bg'],
+                                command=self.master.destroy)
+        exit_button.grid(row=0, column=1, sticky="ne", padx=10, pady=10)
+
+        canvas = tk.Canvas(self, borderwidth=0)
+        scrollbar = tk.Scrollbar(self, orient="vertical", command=canvas.yview)
+        scrollable_frame = tk.Frame(canvas)
+
+        canvas.configure(yscrollcommand=scrollbar.set)
+        canvas.bind('<Configure>', lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
+        canvas.bind_all("<MouseWheel>", lambda e: canvas.yview_scroll(int(-1*(e.delta/120)), "units"))
+
+        canvas.grid(row=1, column=0, sticky="nsew", columnspan=2)
+        scrollbar.grid(row=1, column=2, sticky="ns")
+        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+
+        self.grid_rowconfigure(1, weight=1)
+        self.grid_columnconfigure(0, weight=1)
+
+        self.display_products(scrollable_frame)
+
+    def display_products(self, frame):
         water_bottle_products = [
             (101, 'Bubba 40oz Water Bottle', 'Leakproof lid, cold for 12 hours, vacuum-insulated.', 30.99, 'BubbaLicorice.png', ['Blue', 'Green']),
             (102, 'Bubba Hero Mug', 'Hot up to 6 hours or cold up to 24, leak-proof.', 25.99, 'BubbaHero.png', ['Blue', 'Green']),
@@ -394,45 +410,39 @@ class WaterBottleFrame(tk.Frame):
             (105, 'Bubba 32 oz. Water Bottle, Licorice', 'Leakproof, cold for 12 hours, vacuum-insulated, 32 oz.', 26.99, 'BubbaLicorice.png', ['Blue', 'Green'])
         ]
 
-        row = 1
+        row = 0
         for product_id, name, description, base_price, image_filename, colors in water_bottle_products:
-            try:
-                image = PhotoImage(file=f"./Images/{image_filename}").subsample(9, 9)
-                self.images[product_id] = image
-                label_image = tk.Label(self, image=image)
-                label_image.grid(row=row, column=0, padx=5, pady=2)
-            except Exception as e:
-                print(f"Error loading image {image_filename}: {e}")
-                continue
+            image = PhotoImage(file=f"./Images/{image_filename}").subsample(6, 6)
+            self.images[product_id] = image
+            label_image = tk.Label(frame, image=image)
+            label_image.grid(row=row, column=0, padx=5, pady=5)
 
-            # Product title and description
             label_text = f"{name}: {description}"
-            label_description = tk.Label(self, text=label_text, wraplength=200, justify="left")
-            label_description.grid(row=row, column=1, padx=5, pady=2)
+            label_description = tk.Label(frame, text=label_text, wraplength=300, justify="left")
+            label_description.grid(row=row, column=1, padx=5, pady=5)
 
-            # Dropdown for color selection
-            color_var = tk.StringVar(value=colors[0])  # default color
-            color_menu = tk.OptionMenu(self, color_var, *colors)
-            color_menu.grid(row=row, column=2, padx=5, pady=2)
+            color_var = StringVar(value=colors[0])
+            color_menu = OptionMenu(frame, color_var, *colors)
+            color_menu.grid(row=row, column=2, padx=5, pady=5)
 
-            # Price label and customization dropdown
-            price_var = tk.DoubleVar(value=base_price)  # Store the base price initially
-            price_label = tk.Label(self, text=f"Price: ${price_var.get():.2f}")
-            price_label.grid(row=row, column=4, sticky="w", padx=5, pady=2)
+            customization_var = StringVar(value='None')
+            price_var = DoubleVar(value=base_price)
+            price_label = tk.Label(frame, text=f"Price: ${price_var.get():.2f}")
+            price_label.grid(row=row, column=4, padx=5, pady=5)
 
             customization_options = ['None', 'Patriotic (General)', 'Space Force', 'Marines', 'Coast Guard', 'Army', 'Navy', 'Army National Guard', 'Air Force']
-            customization_var = tk.StringVar(value='None')
-            customization_menu = tk.OptionMenu(self, customization_var, *customization_options,
-                                               command=lambda choice, var=price_var, lbl=price_label: self.update_price(choice, var, lbl, base_price))
-            customization_menu.grid(row=row, column=3, padx=5, pady=2)
+            customization_menu = OptionMenu(frame, customization_var, *customization_options,
+                                            command=lambda value, pid=product_id, pvar=price_var, plabel=price_label, bp=base_price: self.update_price(value, pvar, plabel, bp))
+            customization_menu.grid(row=row, column=3, padx=5, pady=5)
 
-            add_to_cart_button = tk.Button(self, text="Add to Cart", bg=self.colors['button_bg'], fg=self.colors['button_fg'],
+            add_to_cart_button = tk.Button(frame, text="Add to Cart", bg=self.colors['button_bg'], fg=self.colors['button_fg'],
                                            command=lambda pid=product_id, pname=name, p=price_var, c=color_var, cm=customization_var: self.add_to_cart(pid, pname, p.get(), c.get(), cm.get()))
             add_to_cart_button.grid(row=row, column=5, padx=5, pady=2)
 
 
 
             row += 1
+            
 
     def update_price(self, customization, price_var, price_label, base_price):
         if customization == 'Patriotic (General)':
@@ -461,16 +471,35 @@ class YogaMatFrame(tk.Frame):
         self.create_widgets()
 
     def create_widgets(self):
-        self.display_products()
         back_button = tk.Button(self, text="Back to Product Order", bg=self.colors['button_bg'], fg=self.colors['button_fg'],
                                 font=("Helvetica", 14), activebackground=self.colors['button_active_bg'],
                                 command=lambda: self.master.show_frame(ProductOrderFrame))
-        back_button.grid(row=0, column=0, pady=10, sticky="w")
-        exit_button = tk.Button(self, text="Exit Application", bg=self.colors['exit_button_bg'], fg="white",
-                                command=self.master.destroy, font=("Arial", 12))
-        exit_button.place(relx=1.0, rely=0.0, anchor="ne", width=120, height=50)
+        back_button.grid(row=0, column=0, sticky="nw", padx=10, pady=10)
 
-    def display_products(self):
+        exit_button = tk.Button(self, text="Exit Application", bg=self.colors['button_bg'], fg=self.colors['button_fg'],
+                                font=("Helvetica", 14), activebackground=self.colors['button_active_bg'],
+                                command=self.master.destroy)
+        exit_button.grid(row=0, column=1, sticky="ne", padx=10, pady=10)
+
+        canvas = tk.Canvas(self, borderwidth=0)
+        scrollbar = tk.Scrollbar(self, orient="vertical", command=canvas.yview)
+        scrollable_frame = tk.Frame(canvas)
+
+        canvas.configure(yscrollcommand=scrollbar.set)
+        canvas.bind('<Configure>', lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
+        canvas.bind_all("<MouseWheel>", lambda e: canvas.yview_scroll(int(-1*(e.delta/120)), "units"))
+
+        canvas.grid(row=1, column=0, sticky="nsew", columnspan=2)
+        scrollbar.grid(row=1, column=2, sticky="ns")
+        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+
+        self.grid_rowconfigure(1, weight=1)
+        self.grid_columnconfigure(0, weight=1)
+        scrollable_frame.grid_columnconfigure(0, weight=1)  # Ensure description expands within the scrollable frame
+
+        self.display_products(scrollable_frame)
+
+    def display_products(self, frame):
         yoga_mat_products = [
             (201, 'GoFit Double Thick Yoga Mat', 'Excellent nonslip surface ideal for yoga practice.', 39.99, 'GoFitDoubleThick.png', ['Blue', 'Green']),
             (202, 'GoFit Yoga Mat', 'Provides comfort and protection for Yoga poses.', 24.99, 'GoFitYogaMat.png', ['Blue', 'Green']),
@@ -479,61 +508,58 @@ class YogaMatFrame(tk.Frame):
             (205, 'GoFit Yoga Kit', 'Everything needed for a complete Yoga workout.', 25.50, 'GoFitYogaKit.png', ['Blue', 'Green'])
         ]
 
-        row = 1
-        column = 0  # Start placing items in the left column
-        for idx, (product_id, name, description, base_price, image_filename, colors) in enumerate(yoga_mat_products):
-            if idx == 3:  # Switch to the right column after the first three items
-                column = 1
-                row = 1
-
+        row = 0
+        for product_id, name, description, base_price, image_filename, colors in yoga_mat_products:
             try:
-                image = PhotoImage(file=f"./Images/{image_filename}").subsample(9, 9)
+                image = PhotoImage(file=f"./Images/{image_filename}").subsample(6, 6)
                 self.images[product_id] = image
-                label_image = tk.Label(self, image=image)
-                label_image.grid(row=row, column=column*6, padx=5, pady=2, sticky="w")
+                label_image = tk.Label(frame, image=image)
+                label_image.grid(row=row, column=0, padx=5, pady=5)
             except Exception as e:
                 print(f"Error loading image {image_filename}: {e}")
                 continue
 
             label_text = f"{name}: {description}"
-            label_description = tk.Label(self, text=label_text, wraplength=200, justify="left")
-            label_description.grid(row=row, column=1+column*6, padx=5, pady=2, sticky="w")
+            label_description = tk.Label(frame, text=label_text, wraplength=300, justify="left")
+            label_description.grid(row=row, column=1, padx=5, pady=5)
 
             color_var = StringVar(value=colors[0])
-            color_menu = OptionMenu(self, color_var, *colors)
-            color_menu.grid(row=row, column=2+column*6, padx=5, pady=2)
+            color_menu = OptionMenu(frame, color_var, *colors)
+            color_menu.grid(row=row, column=2, padx=5, pady=5)
 
+            customization_var = StringVar(value='None')
             price_var = DoubleVar(value=base_price)
-            price_label = tk.Label(self, text=f"Price: ${price_var.get():.2f}")
-            price_label.grid(row=row, column=4+column*6, sticky="w", padx=5, pady=2)
+            price_label = tk.Label(frame, text=f"Price: ${price_var.get():.2f}")
+            price_label.grid(row=row, column=4, padx=5, pady=5)
 
             customization_options = ['None', 'Patriotic (General)', 'Space Force', 'Marines', 'Coast Guard', 'Army', 'Navy', 'Army National Guard', 'Air Force']
-            customization_var = StringVar(value='None')
-            customization_menu = OptionMenu(self, customization_var, *customization_options,
-                                            command=lambda event=None, c_var=customization_var, p_var=price_var, p_label=price_label, base=base_price: self.update_price(c_var, p_var, p_label, base))
-            customization_menu.grid(row=row, column=3+column*6, padx=5, pady=2)
+            customization_menu = OptionMenu(frame, customization_var, *customization_options,
+                                            command=lambda value, pid=product_id, pvar=price_var, plabel=price_label, bp=base_price: self.update_price(value, pvar, plabel, bp))
+            customization_menu.grid(row=row, column=3, padx=5, pady=5)
 
-            add_to_cart_button = tk.Button(self, text="Add to Cart", bg=self.colors['button_bg'], fg=self.colors['button_fg'],
+            add_to_cart_button = tk.Button(frame, text="Add to Cart", bg=self.colors['button_bg'], fg=self.colors['button_fg'],
                                            command=lambda pid=product_id, pname=name, p=price_var, c=color_var, cm=customization_var: self.add_to_cart(pid, pname, p.get(), c.get(), cm.get()))
-            add_to_cart_button.grid(row=row, column=5+column*6, padx=5, pady=2)
+            add_to_cart_button.grid(row=row, column=5, padx=5, pady=2)
+
 
 
             row += 1
+            
 
-    def update_price(self, customization_var, price_var, price_label, base_price):
-        selected_customization = customization_var.get()
-        if selected_customization == 'Patriotic (General)':
+    def update_price(self, customization, price_var, price_label, base_price):
+        if customization == 'Patriotic (General)':
             new_price = base_price + 2
-        elif selected_customization in ['Space Force', 'Marines', 'Coast Guard', 'Army', 'Navy', 'Army National Guard', 'Air Force']:
+        elif customization in ['Space Force', 'Marines', 'Coast Guard', 'Army', 'Navy', 'Army National Guard', 'Air Force']:
             new_price = base_price + 5
         else:
             new_price = base_price
-
         price_var.set(new_price)
-        price_label.config(text=f"Price: ${new_price:.2f}")
+        price_label.config(text=f"Price: ${new_price:.2f}")  # Update the label text
 
     def add_to_cart(self, product_id, product_name, price, color, customization):
-        self.cart_manager.add_item(product_id, product_name, 1, float(price), color, customization, customized=(customization != 'None'))
+        # Convert price to float to ensure consistent data type
+        price = float(price) if isinstance(price, decimal.Decimal) else price
+        self.cart_manager.add_item(product_id, product_name, 1, price, color, customization, customized=(customization != 'None'))
         messagebox.showinfo("Success", f"Added {product_name} with customization '{customization}' and color '{color}' to cart at price ${price:.2f}.")
 
 class CartFrame(tk.Frame):
@@ -577,19 +603,21 @@ class CartFrame(tk.Frame):
             widget.destroy()
 
         tk.Label(self.cart_items_frame, text="Your Cart:", font=("Helvetica", 16, "bold")).grid(row=0, column=0, columnspan=2, sticky="w")
-    
+
         cart_contents = self.cart_manager.get_cart_contents()
         if cart_contents:
             index = 1
             for product_id, details in cart_contents.items():
                 product_name = details['product_name']
                 quantity = details['quantity']
-                price = float(details['price'])
+                price = details['price']
                 total_price = price * quantity
-                tk.Label(self.cart_items_frame, text=f"{product_name} - Quantity: {quantity} - ${total_price:.2f}", font=("Helvetica", 12)).grid(row=index, column=0, sticky="w")
+                customization = details['customization']
+                tk.Label(self.cart_items_frame, text=f"{product_name} - Quantity: {quantity} - Customization: {customization} - ${total_price:.2f}", font=("Helvetica", 12)).grid(row=index, column=0, sticky="w")
                 index += 1
         else:
             tk.Label(self.cart_items_frame, text="Your cart is empty.", font=("Helvetica", 12)).grid(row=1, column=0, sticky="w")
+
 
     def submit_order(self):
         user_id = self.master.current_user_id
