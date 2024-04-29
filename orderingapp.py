@@ -638,6 +638,22 @@ class CartFrame(tk.Frame):
         exit_button.place(relx=1.0, rely=0.0, anchor="ne", width=120, height=50)
 
         self.update_cart_display()
+        
+        clear_cart_button = tk.Button(self, text="Clear Cart", bg=self.colors['button_bg'], fg=self.colors['button_fg'],
+                                      font=("Helvetica", 14), activebackground=self.colors['button_active_bg'],
+                                      command=self.clear_cart)  # This button will trigger the clear_cart method
+        clear_cart_button.grid(row=4, column=1, padx=20, pady=10, sticky="sew")
+
+    def clear_cart(self):
+        self.cart_manager.clear_cart()  # This method will clear the cart
+        self.update_cart_display()  # Update the display to show that the cart is now empty
+
+    def update_cart_display(self):
+        # This method should update the UI to reflect the cleared cart
+        for widget in self.cart_items_frame.winfo_children():
+            widget.destroy()
+
+        tk.Label(self.cart_items_frame, text="Your Cart is empty.", font=("Helvetica", 16, "bold")).grid(row=0, column=0, columnspan=2, sticky="w")
 
     def update_cart_display(self):
         for widget in self.cart_items_frame.winfo_children():
