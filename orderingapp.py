@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import Canvas, Scrollbar, Frame, PhotoImage, messagebox, simpledialog, ttk, OptionMenu, StringVar, DoubleVar
+from tkinter import Canvas, Scrollbar, Frame, PhotoImage, messagebox, Label, simpledialog, ttk, OptionMenu, StringVar, DoubleVar
 import uuid
 import smtplib
 import decimal
@@ -136,7 +136,6 @@ class CartManager:
 
     def add_item(self, product_id, product_name, quantity, price, color, customization, customized=False):
         itemQty = checkItemQuantity(connection, cursor, product_id)  # This will check the quantity of the item in inventory
-
         if itemQty == 0:  # If there is none in inventory, skip the process.
             print("Item is out of stock.")
             messagebox.showerror("Out Of Stock", "Item is out of stock at the warehouse. Please choose a different product.")
@@ -150,13 +149,17 @@ class CartManager:
                     self.items[product_id]['price'] = price  # Ensure the price is updated
                     self.items[product_id]['customization'] = customization  # Ensure the customization is updated
                     self.items[product_id]['customized'] = customized
-            else:            
-            # if product_id not in self.items:
-                self.items[product_id] = {'product_name': product_name, 'quantity': 0, 'price': price, 'color': color,
-                                          'customization': customization, 'customized': customized}
-                self.items[product_id]['quantity'] += quantity
-            
-        self.notify_observers()
+            else:
+                self.items[product_id] = {
+                    'product_name': product_name,
+                    'quantity': quantity,
+                    'price': price,
+                    'color': color,
+                    'customization': customization,
+                    'customized': customized
+                }
+
+            self.notify_observers()
 
 
 
@@ -306,31 +309,69 @@ class DashboardFrame(BaseFrame):
 
 class ProductOrderFrame(BaseFrame):
     def __init__(self, master, colors, logo_image, login_manager=None):
+        self.customization_images = {}  # Initialize the dictionary before super().__init__()
+        self.load_customization_images()  # Ensure images are loaded before creating widgets
         super().__init__(master, colors, logo_image, login_manager)
         self.items = {}
+        self.create_widgets()
+
+    def load_customization_images(self):
+        image_paths = {
+            'Navy': './Images/NavyLogo.png',
+            'Army': './Images/ArmyLogo.png',
+            'Air Force': './Images/AirForceLogo.png',
+            'Marines': './Images/MarineCorpsLogo.png',
+            'Coast Guard': './Images/CoastGuardLogo.png',
+            'Space Force': './Images/SpaceForceLogo.png',
+            'Army National Guard': './Images/ArmyNationalGuardLogo.png',
+            'Patriotic (General)': './Images/flag.png'
+        }
+        for key, path in image_paths.items():
+            try:
+                img = PhotoImage(file=path)
+                self.customization_images[key] = img.subsample(7, 7)  # Adjust subsampling rate here
+            except Exception as e:
+                print(f"Failed to load {key} image from {path}: {e}")
+                self.customization_images[key] = None
 
     def create_widgets(self):
-        center_frame = tk.Frame(self, bg=self.colors['bg'])
+        center_frame = Frame(self, bg=self.colors['bg'])
         center_frame.place(relx=0.5, rely=0.5, anchor="center")
 
-        tk.Label(center_frame, image=self.logo_image, bg=self.colors['bg']).grid(row=0, columnspan=2, pady=10)
-        tk.Label(center_frame, text="Products", bg=self.colors['bg'], font=("Helvetica", 16)).grid(row=1, columnspan=2, pady=10)
+        Label(center_frame, image=self.logo_image, bg=self.colors['bg']).grid(row=0, columnspan=2, pady=10)
+        Label(center_frame, text="Products", bg=self.colors['bg'], font=("Helvetica", 16)).grid(row=1, columnspan=2, pady=10)
 
-        # Create buttons for each product type
+        # Customization options section
+        customization_frame = Frame(center_frame, bg=self.colors['bg'])
+        customization_frame.grid(row=2, column=0, columnspan=2, pady=20)
+        Label(customization_frame, text="Customization Options", bg=self.colors['bg'], font=("Helvetica", 16, "bold")).pack()
+
+        # Display each customization option with a label
+        for name, img in self.customization_images.items():
+            if img is not None:  # Check if image is loaded
+                frame = Frame(customization_frame, bg=self.colors['bg'])
+                frame.pack(side="left", expand=True, padx=10)
+                Label(frame, image=img, bg=self.colors['bg']).pack()
+                Label(frame, text=name, bg=self.colors['bg'], font=("Helvetica", 12)).pack()
+            else:
+                print(f"Image for {name} not loaded.")
+
         water_bottle_button = tk.Button(center_frame, text="Water Bottles", bg=self.colors['button_bg'], fg=self.colors['button_fg'], font=("Helvetica", 14), activebackground=self.colors['button_active_bg'], command=self.show_water_bottle_frame)
-        water_bottle_button.grid(row=2, column=0, padx=20, pady=10)
+        water_bottle_button.grid(row=1, column=0, padx=20, pady=10)
 
         yoga_mat_button = tk.Button(center_frame, text="Yoga Mats", bg=self.colors['button_bg'], fg=self.colors['button_fg'], font=("Helvetica", 14), activebackground=self.colors['button_active_bg'], command=self.show_yoga_mat_frame)
-        yoga_mat_button.grid(row=2, column=1, padx=20, pady=10)
+        yoga_mat_button.grid(row=1, column=1, padx=20, pady=10)
 
+        # Place the "Check Out" and "Return to Dashboard" buttons on the same row
         checkout_button = tk.Button(center_frame, text="Check Out", bg=self.colors['button_bg'], fg=self.colors['button_fg'], font=("Helvetica", 14), activebackground=self.colors['button_active_bg'], command=self.show_cart_frame)
-        checkout_button.grid(row=3, columnspan=2, pady=10)
+        checkout_button.grid(row=4, column=0, padx=20, pady=20)  # Assign to column 0
 
         back_button = tk.Button(center_frame, text="Return to Dashboard", bg=self.colors['button_bg'], fg=self.colors['button_fg'], font=("Helvetica", 14), activebackground=self.colors['button_active_bg'], command=lambda: self.master.show_frame(DashboardFrame))
-        back_button.grid(row=4, columnspan=2, pady=10)
+        back_button.grid(row=4, column=1, padx=20, pady=20)  # Assign to column 1
 
         exit_button = tk.Button(self, text="Exit Application", bg=self.colors['exit_button_bg'], fg="white", command=self.master.destroy, font=("Arial", 12))
         exit_button.place(relx=1.0, rely=0.0, anchor="ne", width=120, height=50)
+
 
     def show_water_bottle_frame(self):
         self.master.show_frame(WaterBottleFrame)
@@ -358,7 +399,7 @@ class ProductOrderFrame(BaseFrame):
 
     def clear_cart(self):
         self.items = {}
-        
+
     def remove_item_completely(self, product_id):
         if product_id in self.items:
             del self.items[product_id]
