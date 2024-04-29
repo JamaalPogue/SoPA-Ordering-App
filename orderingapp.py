@@ -986,7 +986,7 @@ class App(tk.Tk):
         self.show_frame(LoginFrame)
         
         # Set minimum screen size
-        self.minsize(width=800, height=600)
+        self.minsize(width=950, height=600)
 
     def show_frame(self, context):
         frame = self.frames[context]
