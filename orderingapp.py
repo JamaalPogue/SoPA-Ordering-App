@@ -149,6 +149,8 @@ class CartManager:
                     self.items[product_id]['price'] = price  # Ensure the price is updated
                     self.items[product_id]['customization'] = customization  # Ensure the customization is updated
                     self.items[product_id]['customized'] = customized
+                    messagebox.showinfo("Success",
+                                        f"Added {product_name} with customization '{customization}' and color '{color}' to cart at price ${price:.2f}.")
             else:
                 self.items[product_id] = {
                     'product_name': product_name,
@@ -158,6 +160,8 @@ class CartManager:
                     'customization': customization,
                     'customized': customized
                 }
+                messagebox.showinfo("Success",
+                                f"Added {product_name} with customization '{customization}' and color '{color}' to cart at price ${price:.2f}.")
 
             self.notify_observers()
 
@@ -499,7 +503,7 @@ class WaterBottleFrame(tk.Frame):
         # Convert price to float to ensure consistent data type
         price = float(price) if isinstance(price, decimal.Decimal) else price
         self.cart_manager.add_item(product_id, product_name, 1, price, color, customization, customized=(customization != 'None'))
-        messagebox.showinfo("Success", f"Added {product_name} with customization '{customization}' and color '{color}' to cart at price ${price:.2f}.")
+        # messagebox.showinfo("Success", f"Added {product_name} with customization '{customization}' and color '{color}' to cart at price ${price:.2f}.")
 
 class YogaMatFrame(tk.Frame):
     def __init__(self, parent, colors, db_info, cart_manager, logo_image):
@@ -601,7 +605,7 @@ class YogaMatFrame(tk.Frame):
         # Convert price to float to ensure consistent data type
         price = float(price) if isinstance(price, decimal.Decimal) else price
         self.cart_manager.add_item(product_id, product_name, 1, price, color, customization, customized=(customization != 'None'))
-        messagebox.showinfo("Success", f"Added {product_name} with customization '{customization}' and color '{color}' to cart at price ${price:.2f}.")
+        # messagebox.showinfo("Success", f"Added {product_name} with customization '{customization}' and color '{color}' to cart at price ${price:.2f}.")
 
 class CartFrame(tk.Frame):
     def __init__(self, parent, colors, db_info, cart_manager, logo_image):
@@ -878,10 +882,10 @@ class UserSettingsFrame(BaseFrame):
         # Here, you will connect to your MySQL database and fetch user information
         # For demonstration purposes, I'll assume you have retrieved user information from the database
         user_info = {
-            "first_name": "John",
-            "last_name": "Doe",
-            "user_role": "Admin",
-            "user_email": "john.doe@example.com",
+            "first_name": "Jamaal",
+            "last_name": "Pogue",
+            "user_role": "User",
+            "user_email": "jpogue1@tulane.edu",
             "preferred_payment_method": "Credit Card"
         }
 
@@ -945,10 +949,10 @@ class UpdateUserInfoFrame(BaseFrame):
         # Here, you will connect to your MySQL database and fetch user information
         # For demonstration purposes, I'll assume you have retrieved user information from the database
         user_info = {
-            "first_name": "John",
-            "last_name": "Doe",
-            "user_role": "Admin",
-            "user_email": "john.doe@example.com",
+            "first_name": "Jamaal",
+            "last_name": "Pogue",
+            "user_role": "User",
+            "user_email": "jpogue1@tulane.edu",
             "preferred_payment_method": "Credit Card"
         }
 
