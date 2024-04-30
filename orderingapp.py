@@ -623,6 +623,10 @@ class CartFrame(tk.Frame):
 
         tk.Label(self.cart_items_frame, text="Your Cart:", font=("Helvetica", 16, "bold")).grid(row=0, column=0, columnspan=2, sticky="w")
 
+        # Label for displaying total cost
+        self.total_cost_label = tk.Label(self.cart_items_frame, text="", font=("Helvetica", 16, "bold"))
+        self.total_cost_label.grid(row=1, column=0, columnspan=2, sticky="w")
+
         add_more_button = tk.Button(self, text="Add More to Order", bg=self.colors['button_bg'], fg=self.colors['button_fg'],
                                     font=("Helvetica", 14), activebackground=self.colors['button_active_bg'],
                                     command=self.add_more_to_order, width=20)
@@ -637,45 +641,55 @@ class CartFrame(tk.Frame):
                                 command=self.master.destroy, font=("Arial", 12))
         exit_button.place(relx=1.0, rely=0.0, anchor="ne", width=120, height=50)
 
-        self.update_cart_display()
-        
         clear_cart_button = tk.Button(self, text="Clear Cart", bg=self.colors['button_bg'], fg=self.colors['button_fg'],
                                       font=("Helvetica", 14), activebackground=self.colors['button_active_bg'],
-                                      command=self.clear_cart)  # This button will trigger the clear_cart method
+                                      command=self.clear_cart)
         clear_cart_button.grid(row=4, column=1, padx=20, pady=10, sticky="sew")
 
+        self.update_cart_display()
+
     def clear_cart(self):
-        self.cart_manager.clear_cart()  # This method will clear the cart
-        self.update_cart_display()  # Update the display to show that the cart is now empty
+        self.cart_manager.clear_cart()
+        self.update_cart_display()
 
     def update_cart_display(self):
-        # This method should update the UI to reflect the cleared cart
+        # Clear all existing widgets in the cart items frame
         for widget in self.cart_items_frame.winfo_children():
             widget.destroy()
 
-        tk.Label(self.cart_items_frame, text="Your Cart is empty.", font=("Helvetica", 16, "bold")).grid(row=0, column=0, columnspan=2, sticky="w")
-
-    def update_cart_display(self):
-        for widget in self.cart_items_frame.winfo_children():
-            widget.destroy()
-
+        # Recreate the "Your Cart:" label
         tk.Label(self.cart_items_frame, text="Your Cart:", font=("Helvetica", 16, "bold")).grid(row=0, column=0, columnspan=2, sticky="w")
 
+        # Recreate the total cost label
+        self.total_cost_label = tk.Label(self.cart_items_frame, text="", font=("Helvetica", 16, "bold"))
+        self.total_cost_label.grid(row=1, column=0, columnspan=2, sticky="w")
+
+        # Fetch cart contents and display them
         cart_contents = self.cart_manager.get_cart_contents()
+        total_cost = 0.0
         if cart_contents:
-            index = 1
+            index = 2  # Start from the second row because the first row is the title
             for product_id, details in cart_contents.items():
                 product_name = details['product_name']
                 quantity = details['quantity']
                 price = details['price']
                 total_price = price * quantity
+                total_cost += total_price
                 customization = details['customization']
                 tk.Label(self.cart_items_frame, text=f"{product_name} - Quantity: {quantity} - Customization: {customization} - ${total_price:.2f}", font=("Helvetica", 12)).grid(row=index, column=0, sticky="w")
                 index += 1
+            self.total_cost_label.config(text=f"Total Cost: ${total_cost:.2f}")
         else:
-            tk.Label(self.cart_items_frame, text="Your cart is empty.", font=("Helvetica", 12)).grid(row=1, column=0, sticky="w")
+            # Display a message if the cart is empty
+            tk.Label(self.cart_items_frame, text="Your cart is empty.", font=("Helvetica", 12)).grid(row=2, column=0, sticky="w")
+
+        # Ensure the total cost label is updated and displayed correctly
+        self.total_cost_label.grid(row=1, column=0, columnspan=2, sticky="w")
 
 
+    def add_more_to_order(self):
+        self.master.show_frame(ProductOrderFrame)
+        
     def submit_order(self):
         user_id = self.master.current_user_id
         if not user_id:
